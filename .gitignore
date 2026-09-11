@@ -20,4 +20,4 @@ sleepdown_log_*.txt
 *.jks
 *.keystore
 /miuix/
-/gradle/gradle-daemon-jvm.properties/
+/gradle/gradle-daemon-jvm.properties
