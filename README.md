@@ -1,14 +1,61 @@
-# SleepDown 课程表
+# 课程表
 
-> 项目交流群：1108032519
+### 关于此项目
+本项目基于[`SleepDown课程表`](https://github.com/xiaomanjun233/SleepDown-Schedule)修改  
+一款基于 Jetpack Compose 与 Miuix 构建，融合液态玻璃视觉效果和 AI 能力的 Android 课程表。  
+大部分功能和原仓库（2026/9/11）一致，对交互逻辑进行了修改  
+[软件介绍](#它能做什么)
+### [编译教程](build.md)
 
+对于muix的修改文件可参考./patches/的文件记录
+
+
+## 项目结构
+
+```text
+CourseSchedule/
+├── app/
+│   ├── src/main/java/com/xiaomanjun/sleepdownschedule/
+│   │   ├── app/                             # 应用装配、启动、顶层状态与页面宿主
+│   │   ├── model/                           # 跨功能共享模型
+│   │   ├── data/{local,repository}/         # Room、迁移、DAO 与 Repository
+│   │   ├── domain/{course,schedule}/        # 无 UI 副作用的课程与课表规则
+│   │   ├── core/                            # 身份、配置、性能、壁纸与通用 UI
+│   │   ├── feature/                         # Home、导入、设置、组件等纵向功能
+│   │   ├── glass/                           # 液态玻璃框架及 UI 适配
+│   │   ├── transition/{legacy,...}/         # 统一转场与既有 Legacy renderer
+│   │   └── *.kt                             # 稳定 Android 入口与兼容门面
+│   ├── src/main/assets/shiguang_warehouse-main/
+│   │                                        # 教务系统适配资源
+│   └── src/test/ / src/androidTest/          # 单元测试、迁移和仪器测试
+├── benchmark/                                # Macrobenchmark 与 Baseline Profile
+├── docs/                                     # 版本说明、性能基线和节次方案文档
+├── patches/miuix-0.9.3-sleepdown.patch      # Miuix 基础组合构建补丁
+├── patches/miuix-cascading-popup-surface.patch
+│                                           # 级联菜单玻璃表面扩展
+├── patches/miuix-scaffold-underlay.patch     # 页面采样层与弹窗宿主分离
+├── THIRD_PARTY_NOTICES.md                    # 第三方代码与许可声明
+└── gradlew / gradlew.bat                     # Gradle Wrapper
+```
+### 许可证
+
+> 本仓库是**源码可见项目，并非 OSI 定义的开源项目**。允许个人、非商业地克隆、编译和修改；对外提供任何修改版项目、源码、APK/AAB、应用或服务时，必须至少同步公开可查看/下载的对应源代码，并在发布页面和 App 内显著注明原作者 `xiaomanjun233`、原项目链接及“非官方修改版”，不得冒充原创或官方版本。仅发布二进制、反编译代码、私有/付费/受邀源码或不完整补丁均不符合要求。完整条款见 [SleepDown 署名非商业、源码可见许可 1.1](LICENSE.md)。  
+> 修改部分版权归qimlisky所有，整体仍受原许可约束
+
+[其他第三方许可证](#第三方项目与许可证)
+
+
+
+
+## 以下内容为部分源项目内容
+围绕课表的导入、维护、提醒与日常查看进行设计，并提供桌面组件、今日助手和较完整的个性化能力。无需注册账号，课表、设置、壁纸与助手数据默认存储在设备本地。
+
+应用使用 Jetpack Compose 构建，界面以 Miuix 与液态玻璃效果为基础，并针对壁纸背景下的可读性、动画连续性以及手机和平板布局进行了专门适配。视觉效果之外，项目同样重视数据迁移安全、长期存储占用和复杂课表场景下的稳定性。
 > 一款基于 Jetpack Compose 与 Miuix 构建，融合液态玻璃视觉效果和 AI 能力的 Android 课程表。
 
-> [!IMPORTANT]
-> 本仓库是**源码可见项目，并非 OSI 定义的开源项目**。允许个人、非商业地克隆、编译和修改；对外提供任何修改版项目、源码、APK/AAB、应用或服务时，必须至少同步公开可查看/下载的对应源代码，并在发布页面和 App 内显著注明原作者 `xiaomanjun233`、原项目链接及“非官方修改版”，不得冒充原创或官方版本。仅发布二进制、反编译代码、私有/付费/受邀源码或不完整补丁均不符合要求。完整条款见 [SleepDown 署名非商业、源码可见许可 1.1](LICENSE.md)。
+> ~~`xiaomanjun233`项目交流群：1108032519~~
 
 SleepDown 围绕课表的导入、维护、提醒与日常查看进行设计，并提供桌面组件、今日助手和较完整的个性化能力。无需注册账号，课表、设置、壁纸与助手数据默认存储在设备本地。
-
 应用使用 Jetpack Compose 构建，界面以 Miuix 与液态玻璃效果为基础，并针对壁纸背景下的可读性、动画连续性以及手机和平板布局进行了专门适配。视觉效果之外，项目同样重视数据迁移安全、长期存储占用和复杂课表场景下的稳定性。
 
 当前版本为 **1.2.3**，最低支持 Android 8.0（API 26）。正式身份已迁移到 `com.xiaomanjun.sleepdownschedule`；GitHub 与应用商店发行版共用这一 applicationId。安装包可以在 [GitHub Releases](https://github.com/xiaomanjun233/SleepDown-Schedule/releases) 或 [Gitee 发行版](https://gitee.com/xiaomanjun233/SleepDown-Schedule/releases) 下载。
@@ -128,33 +175,7 @@ $miuixSourceRoot = (Resolve-Path ../miuix-reference).Path
 
 先在 Android Studio 配置 Android SDK 与 Gradle JDK。命令行 `sleepdown.miuixSourcePath` 会覆盖本地配置中的路径；Release 签名需自行配置，不随源码分发。补丁基线、范围和验证说明见 [patches/README.md](patches/README.md)。
 
-## 项目结构
 
-```text
-CourseSchedule/
-├── app/
-│   ├── src/main/java/com/xiaomanjun/sleepdownschedule/
-│   │   ├── app/                             # 应用装配、启动、顶层状态与页面宿主
-│   │   ├── model/                           # 跨功能共享模型
-│   │   ├── data/{local,repository}/         # Room、迁移、DAO 与 Repository
-│   │   ├── domain/{course,schedule}/        # 无 UI 副作用的课程与课表规则
-│   │   ├── core/                            # 身份、配置、性能、壁纸与通用 UI
-│   │   ├── feature/                         # Home、导入、设置、组件等纵向功能
-│   │   ├── glass/                           # 液态玻璃框架及 UI 适配
-│   │   ├── transition/{legacy,...}/         # 统一转场与既有 Legacy renderer
-│   │   └── *.kt                             # 稳定 Android 入口与兼容门面
-│   ├── src/main/assets/shiguang_warehouse-main/
-│   │                                        # 教务系统适配资源
-│   └── src/test/ / src/androidTest/          # 单元测试、迁移和仪器测试
-├── benchmark/                                # Macrobenchmark 与 Baseline Profile
-├── docs/                                     # 版本说明、性能基线和节次方案文档
-├── patches/miuix-0.9.3-sleepdown.patch      # Miuix 基础组合构建补丁
-├── patches/miuix-cascading-popup-surface.patch
-│                                           # 级联菜单玻璃表面扩展
-├── patches/miuix-scaffold-underlay.patch     # 页面采样层与弹窗宿主分离
-├── THIRD_PARTY_NOTICES.md                    # 第三方代码与许可声明
-└── gradlew / gradlew.bat                     # Gradle Wrapper
-```
 
 完整的包边界、入口映射与安全拆分规则见 [`docs/architecture/PROJECT_STRUCTURE.md`](docs/architecture/PROJECT_STRUCTURE.md)；通用界面复用约束见 [`SLEEPDOWN_DESIGN_SYSTEM.md`](docs/architecture/SLEEPDOWN_DESIGN_SYSTEM.md)，今日助手工具与提示词链路见 [`DAY_AGENT_RUNTIME.md`](docs/architecture/DAY_AGENT_RUNTIME.md)。
 
