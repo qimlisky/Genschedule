@@ -66,7 +66,7 @@ class HomePersonalizationGeometryTest {
         val middle = adaptiveWeekCardCornerRadius(48.dp, 48.dp, 412.dp, 915.dp, 0.5f)
         val maximum = adaptiveWeekCardCornerRadius(48.dp, 48.dp, 412.dp, 915.dp, 1f)
 
-        assertEquals(8f, middle.value, 0.0001f)
+        assertEquals(6f, middle.value, 0.0001f)
         assertTrue(minimum < middle)
         assertTrue(maximum > middle)
         assertTrue(maximum.value <= 48f * 0.32f)

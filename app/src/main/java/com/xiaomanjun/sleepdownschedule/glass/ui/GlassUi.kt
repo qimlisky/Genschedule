@@ -34,12 +34,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -63,6 +67,7 @@ import com.xiaomanjun.sleepdownschedule.glass.referenceLensSampleScale
 import com.xiaomanjun.sleepdownschedule.glass.rememberGlassSurfaceDescriptor
 import com.xiaomanjun.sleepdownschedule.glass.sampledBackdropOnly
 import com.xiaomanjun.sleepdownschedule.glass.sleepDownGlassSurface
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -1128,6 +1133,13 @@ fun CourseGlassCard(
     backdropSampleScale: Float = 1f,
     sampledShape: Shape? = null,
     expandedOutlineLight: Boolean = false,
+    /**
+     * Draws a uniform translucent white hairline just inside the card edge. It is an overlay
+     * sibling of the content, so it survives all three material branches (real glass, gaussian
+     * blur, flat colour fallback) without any of them having to know about it. Callers opt in
+     * per surface; it is not a global restyle.
+     */
+    cardOutline: Boolean = false,
     morphAllocation: com.xiaomanjun.sleepdownschedule.glass.GlassMorphAllocation? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
@@ -1164,6 +1176,9 @@ fun CourseGlassCard(
     val hasWallpaper = config.hasAnyWallpaper()
     val tokens = GlassTokens.courseCard(blurOverride ?: config.courseCardBlur)
     val lightGlass = glassUsesLightStyle(config)
+    // Reuses the material's own border token instead of inventing a new constant. The light-glass
+    // damping matches the desktop widget's white hairline (0.24 dark / 0.18 light).
+    val cardOutlineAlpha = tokens.borderAlpha * if (lightGlass) 0.75f else 1f
     val liveLiquidBlur = blurOverride ?: previewState?.cardBlur ?: config.courseCardBlur
     val liveRefractionStrength = previewState?.cardRefractionStrength
         ?: config.courseCardRefractionStrength
@@ -1437,6 +1452,36 @@ fun CourseGlassCard(
             )
         }
         content()
+        // The hairline is drawn on an outline inset by half the stroke so the whole stroke lands
+        // inside the card. A centred border would spill half of itself into the 4dp gutter the
+        // week grid leaves between cards.
+        if (cardOutline) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clip(shape)
+                    .drawBehind {
+                        val strokeWidth = ceil(1.dp.toPx())
+                            .coerceIn(1f, size.minDimension / 2f)
+                        if (size.minDimension < strokeWidth * 2f) return@drawBehind
+                        translate(strokeWidth / 2f, strokeWidth / 2f) {
+                            drawOutline(
+                                outline = shape.createOutline(
+                                    size = Size(
+                                        size.width - strokeWidth,
+                                        size.height - strokeWidth
+                                    ),
+                                    layoutDirection = layoutDirection,
+                                    density = this
+                                ),
+                                color = Color.White,
+                                alpha = cardOutlineAlpha,
+                                style = Stroke(width = strokeWidth)
+                            )
+                        }
+                    }
+            )
+        }
         if (pressed) {
             Box(
                 Modifier

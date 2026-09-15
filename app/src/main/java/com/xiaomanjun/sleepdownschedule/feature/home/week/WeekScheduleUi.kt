@@ -1083,6 +1083,7 @@ private fun WeekEditOverlayHost(
                 course = req.course,
                 modifier = Modifier.fillMaxSize(),
                 shape = cardShape,
+                cardOutline = true,
                 onClick = null
             ) {
                 WeekCourseOverlayCardContent(req.course, config)
@@ -3290,6 +3291,7 @@ fun WeekCourseBlock(
                             course = underlyingCourse,
                             modifier = Modifier.fillMaxSize(),
                             shape = cardShape,
+                            cardOutline = true,
                             onClick = null
                         ) {
                             WeekCourseOverlayCardContent(underlyingCourse, config)
@@ -3341,6 +3343,7 @@ fun WeekCourseBlock(
                         course = target,
                         modifier = Modifier.fillMaxSize(),
                         shape = cardShape,
+                        cardOutline = true,
                         onClick = null
                     ) {
                         WeekCourseOverlayCardContent(target, config)
@@ -3392,6 +3395,7 @@ fun WeekCourseBlock(
                     .fillMaxWidth()
                     .height(displayedHeight),
                 shape = cardShape,
+                cardOutline = true,
                 mountMaterial = occlusionMaterialMounted,
                 // Pager owns lifetime; scrolling never toggles a card's material nodes.
                 viewportMaterialVisible = true,

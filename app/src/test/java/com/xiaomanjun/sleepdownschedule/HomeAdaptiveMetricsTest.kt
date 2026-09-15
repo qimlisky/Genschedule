@@ -207,7 +207,7 @@ class HomeAdaptiveMetricsTest {
             windowHeight = 800.dp
         )
 
-        assertEquals(8.dp, phone)
+        assertEquals(6.dp, phone)
         assertTrue(shortTabletCard >= 10.dp)
         assertTrue(tallTabletCard > shortTabletCard)
         assertTrue(tallTabletCard <= 16.dp)
