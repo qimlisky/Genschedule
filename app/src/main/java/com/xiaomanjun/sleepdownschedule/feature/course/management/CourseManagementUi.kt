@@ -60,6 +60,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -164,24 +165,35 @@ internal fun CourseManagementColorProvider(
     ) {
         resolvedCourseCardPalette(state.config, wallpaperImages.representativeColors)
     }
+    // Part of the key because it can flip on the wallpaper state alone, without the mode or the
+    // resolved palette changing.
+    val usesGeneratedHues = courseCardUsesGeneratedHues(state.config)
     val assignments = remember(
         state.config.id,
         state.config.courseCardColorMode,
         state.config.cardColorArgb,
         state.config.courseCardPalette,
+        usesGeneratedHues,
         colorSignature,
         coursePalette
     ) {
         buildCourseCardColorAssignments(
             state.courses,
             coursePalette,
-            tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT
+            tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT,
+            identityHues = usesGeneratedHues
         )
+    }
+    // The management screen must show the same colours as the home week view, and its per-course
+    // swatch row must offer the colours the cards actually use.
+    val pickerPalette = remember(usesGeneratedHues, assignments) {
+        if (usesGeneratedHues) assignments.values.distinct() else null
     }
     CompositionLocalProvider(
         LocalAdaptiveGlass provides adaptiveGlass,
         LocalCourseCardPalette provides coursePalette,
         LocalCourseCardColorAssignments provides assignments,
+        LocalCourseCardPickerPalette provides pickerPalette,
         content = content
     )
 }
@@ -897,14 +909,13 @@ private fun CourseIdentityCard(
                 modifier = Modifier.fillMaxWidth(),
                 insideMargin = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
             )
-            val palette = LocalCourseCardPalette.current.ifEmpty { DefaultCourseCardPalette }
-            val visiblePalette = palette.take(4)
-            Row(
+            val palette = courseCardPickerPalette()
+            LazyRow(
                 modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                visiblePalette.forEach { argb ->
+                items(palette) { argb ->
                     val selected = selectedColor == argb
                     Box(
                         Modifier
@@ -938,12 +949,14 @@ private fun CourseIdentityCard(
                         }
                     }
                 }
-                CourseColorPaletteButton(
-                    backdrop = backdrop,
-                    selected = selectedColor != null && selectedColor !in visiblePalette,
-                    onClick = onOpenColorPicker,
-                    size = 34.dp
-                )
+                item {
+                    CourseColorPaletteButton(
+                        backdrop = backdrop,
+                        selected = selectedColor != null && selectedColor !in palette,
+                        onClick = onOpenColorPicker,
+                        size = 34.dp
+                    )
+                }
             }
         }
     }

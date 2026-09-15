@@ -38,9 +38,8 @@ import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.QuickSheetLiquidAction
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignTokens
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownPickerDialog
-import com.xiaomanjun.sleepdownschedule.glass.ui.DefaultCourseCardPalette
-import com.xiaomanjun.sleepdownschedule.glass.ui.LocalCourseCardPalette
 import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
+import com.xiaomanjun.sleepdownschedule.glass.ui.courseCardPickerPalette
 
 @Composable
 internal fun CourseColorPicker(
@@ -54,7 +53,7 @@ internal fun CourseColorPicker(
     onDismissFinished: () -> Unit,
     onColorSelected: (Long?) -> Unit
 ) {
-    val palette = LocalCourseCardPalette.current.ifEmpty { DefaultCourseCardPalette }
+    val palette = courseCardPickerPalette()
     var pendingColor by remember(show, selectedColorArgb) { mutableStateOf(selectedColorArgb) }
     var paletteAnchorVersion by remember(show, selectedColorArgb, automaticColorArgb) { mutableIntStateOf(0) }
     val foreground = if (appUsesDarkTheme(config)) Color.White else Color(0xFF111111)
