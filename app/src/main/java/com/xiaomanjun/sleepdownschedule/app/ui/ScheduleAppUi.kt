@@ -604,85 +604,6 @@ private data class PendingCourseGroupEdit(
     val edited: List<CourseEntity>
 )
 
-private fun composeDetailMorphSnapshot(underlay: Bitmap, popup: Bitmap): Bitmap? = runCatching {
-    val width = underlay.width
-    val height = underlay.height
-    require(width > 0 && height > 0)
-    Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { result ->
-        val target = android.graphics.Rect(0, 0, width, height)
-        AndroidCanvas(result).apply {
-            drawBitmap(underlay, null, target, null)
-            drawBitmap(popup, null, target, null)
-        }
-    }
-}.getOrNull()
-
-private data class DetailMorphWindowSnapshot(
-    val bitmap: Bitmap,
-    val originInWindow: Offset
-)
-
-/**
- * Captures the final pixels of the special schedule-picker scene.
- *
- * That scene is assembled from a nested PickerScene producer, bitmap-backed schedule cards and a
- * root Miuix popup-host sibling. Recording an ancestor GraphicsLayer is still useful as a fallback,
- * but it is not guaranteed to flatten every nested RenderNode on ColorOS. PixelCopy reads the
- * already-composited source window once, before the destination Activity exists.
- */
-private suspend fun captureDetailMorphWindowSnapshot(
-    activity: Activity,
-    rootPositionInWindow: Offset,
-    rootSize: IntSize
-): DetailMorphWindowSnapshot? {
-    val decor = activity.window.decorView
-    if (decor.width <= 0 || decor.height <= 0 || rootSize.width <= 0 || rootSize.height <= 0) {
-        return null
-    }
-    val left = rootPositionInWindow.x.roundToInt().coerceIn(0, decor.width - 1)
-    val top = rootPositionInWindow.y.roundToInt().coerceIn(0, decor.height - 1)
-    val right = (rootPositionInWindow.x + rootSize.width)
-        .roundToInt()
-        .coerceIn(left + 1, decor.width)
-    val bottom = (rootPositionInWindow.y + rootSize.height)
-        .roundToInt()
-        .coerceIn(top + 1, decor.height)
-    val sourceRect = android.graphics.Rect(left, top, right, bottom)
-    val bitmap = Bitmap.createBitmap(
-        sourceRect.width(),
-        sourceRect.height(),
-        Bitmap.Config.ARGB_8888
-    )
-    return suspendCancellableCoroutine { continuation ->
-        runCatching {
-            PixelCopy.request(
-                activity.window,
-                sourceRect,
-                bitmap,
-                { result ->
-                    if (!continuation.isActive) {
-                        bitmap.recycle()
-                    } else if (result == PixelCopy.SUCCESS) {
-                        continuation.resume(
-                            DetailMorphWindowSnapshot(
-                                bitmap = bitmap,
-                                originInWindow = Offset(left.toFloat(), top.toFloat())
-                            )
-                        )
-                    } else {
-                        bitmap.recycle()
-                        continuation.resume(null)
-                    }
-                },
-                Handler(Looper.getMainLooper())
-            )
-        }.onFailure {
-            bitmap.recycle()
-            if (continuation.isActive) continuation.resume(null)
-        }
-    }
-}
-
 private var splashEntranceDone = false
 internal val LocalEditingCourseId = compositionLocalOf<Long?> { null }
 internal val LocalSharedTransitionScope = compositionLocalOf<SharedTransitionScope?> { null }
@@ -703,7 +624,6 @@ fun CourseScheduleAppUi(
     val pickerState = rememberSchedulePickerState()
     var previewScheduleId by remember { mutableStateOf<Int?>(null) }
     var pendingPickerEditorScheduleId by remember { mutableStateOf<Int?>(null) }
-    var quickScheduleDraft by remember { mutableStateOf<QuickScheduleDraft?>(null) }
     val dayAgentBackgroundMotionState = rememberDayAgentBackgroundMotionState()
     var dayAgentPagerSettled by remember { mutableStateOf(false) }
     var detailMorphState by remember { mutableStateOf<DetailMorphState>(DetailMorphState.Idle) }
@@ -2082,27 +2002,6 @@ fun CourseScheduleAppUi(
         }
     }
 
-    fun quickDraftFor(scheduleId: Int): QuickScheduleDraft {
-        val config = latestAllSchedulesState.value.allConfigs.firstOrNull { it.id == scheduleId }
-            ?: defaultConfig(scheduleId)
-        val totalWeeks = config.totalWeeks.coerceIn(1, 60)
-        val resolvedWeek = resolveScheduleCurrentWeek(
-            config,
-            totalWeeks,
-            config.currentWeek,
-            config.termStartDate,
-            config.autoCurrentWeek
-        )
-        return QuickScheduleDraft(
-            scheduleId = scheduleId,
-            totalWeeks = totalWeeks,
-            currentWeek = resolvedWeek,
-            autoCurrentWeek = config.autoCurrentWeek,
-            hideEmptyWeekends = config.hideEmptyWeekends,
-            termStartDate = config.termStartDate.orEmpty()
-        )
-    }
-
     LaunchedEffect(pendingImportedSetupId) {
         val scheduleId = pendingImportedSetupId ?: return@LaunchedEffect
         screen = Screen.Home
@@ -2116,11 +2015,6 @@ fun CourseScheduleAppUi(
         if (pickerState.overlayVisible) pickerState.reset()
         withFrameNanos { }
         enterCustomizePage()
-        snapshotFlow {
-            pickerState.phase is CustomizeUiState.Picker &&
-                pickerState.selectedScheduleId == scheduleId
-        }.first { it }
-        quickScheduleDraft = quickDraftFor(scheduleId)
         pendingImportedSetupId = null
     }
 
@@ -3063,10 +2957,7 @@ fun CourseScheduleAppUi(
                                 apply = true,
                                 targetOverride = newId,
                                 commitTarget = true,
-                                crossfadeToTarget = true,
-                                onFinished = {
-                                    quickScheduleDraft = quickDraftFor(newId)
-                                }
+                                crossfadeToTarget = true
                             )
                         }
                     }
@@ -3092,11 +2983,6 @@ fun CourseScheduleAppUi(
                         }.onSuccess { shareScheduleIcs(context, scheduleName, it) }
                             .onFailure { Toast.makeText(context, it.message ?: "ICS 文件生成失败", Toast.LENGTH_SHORT).show() }
                     }
-                }
-            },
-            onCustomize = { scheduleId ->
-                if (pickerState.phase is CustomizeUiState.Picker) {
-                    quickScheduleDraft = quickDraftFor(scheduleId)
                 }
             },
             onRename = viewModel::renameSchedule,
@@ -3688,155 +3574,6 @@ fun CourseScheduleAppUi(
         }
     )
     GlassMiuixSettingsTheme(settingsVisualConfig(state.config)) {
-        QuickScheduleSettingsSheets(
-            draft = quickScheduleDraft,
-            config = state.config,
-            // The home/chrome producers are siblings below the sheet, so this remains a real
-            // liquid backdrop without ever recording the dialog that consumes it. In particular,
-            // do not restore the former root-level quickSheetBackdrop: it caused the native
-            // RenderThread recursion when the new-schedule sheet opened after Picker exit.
-            backdrop = if (pickerState.overlayVisible) pickerSceneBackdrop else chromeBackdrop,
-            onDraftChange = { quickScheduleDraft = it },
-            onDismiss = { quickScheduleDraft = null },
-            onDismissFinished = {
-                // Direct customization leaves the manager below the sheet. New-schedule setup
-                // still returns through the existing home-to-picker Morph after its sheet closes.
-                if (!pickerState.overlayVisible) {
-                    pickerState.phase = CustomizeUiState.Home
-                    enterCustomizePage()
-                }
-            },
-            onSave = { draft, onSaved ->
-                val latest = latestAllSchedulesState.value
-                val baseConfig = latest.allConfigs.firstOrNull { it.id == draft.scheduleId }
-                    ?: return@QuickScheduleSettingsSheets
-                val totalWeeks = draft.totalWeeks.coerceIn(1, 60)
-                val manualWeek = draft.currentWeek.coerceIn(1, totalWeeks)
-                val datedConfig = baseConfig.copy(
-                    totalWeeks = totalWeeks,
-                    currentWeek = manualWeek,
-                    termStartDate = draft.termStartDate.ifBlank { null },
-                    autoCurrentWeek = draft.autoCurrentWeek,
-                    hideEmptyWeekends = draft.hideEmptyWeekends
-                )
-                val periods = latest.allPeriods.filter { it.scheduleId == draft.scheduleId }
-                    .ifEmpty { defaultPeriods(draft.scheduleId) }
-                viewModel.saveConfigForSchedule(
-                    draft.scheduleId,
-                    // The automatic display week is derived at runtime. Persist the
-                    // selected fallback instead of writing a clamped pre-term week 1.
-                    datedConfig.copy(currentWeek = manualWeek),
-                    periods,
-                    onSaved
-                )
-            },
-            suppressDetailedButton = detailMorphState !is DetailMorphState.Idle,
-            onDetailedSettings = { scheduleId, sourceBoundsInWindow, saveBeforeOpening ->
-                // The detailed page is the real cross-activity SettingsDetailActivity opened
-                // through the shared transition framework (QuickSheetToSettingsDetail route).
-                if (detailMorphState !is DetailMorphState.Idle) {
-                    return@QuickScheduleSettingsSheets
-                }
-                val activity = context.findActivity() ?: return@QuickScheduleSettingsSheets
-                val detailInputNanos = System.nanoTime()
-                appScope.launch {
-                    suspend fun capturePopupFrame(): Bitmap? {
-                        detailPopupCaptureActive = true
-                        val requestedToken = detailPopupCaptureToken + 1
-                        detailPopupCaptureToken = requestedToken
-                        var waitedFrames = 0
-                        while (
-                            detailPopupCapturedToken.get() != requestedToken &&
-                            waitedFrames < 4
-                        ) {
-                            withFrameNanos { }
-                            waitedFrames += 1
-                        }
-                        if (detailPopupCapturedToken.get() != requestedToken) return null
-                        return runCatching {
-                            detailPopupGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                        }.getOrNull()
-                    }
-
-                    // Let the released press state reach the source window before copying its
-                    // final compositor output. This is the authoritative path for the custom
-                    // schedule picker, whose nested RenderNodes cannot be flattened reliably by
-                    // recording only the outer Compose layer.
-                    withFrameNanos { }
-                    val windowSnapshot = captureDetailMorphWindowSnapshot(
-                        activity = activity,
-                        rootPositionInWindow = homeRootPositionInWindow,
-                        rootSize = homeReadabilityRootSize
-                    )
-                    val layeredSnapshot = if (windowSnapshot == null) {
-                        val sourceUnderlaySnapshot = runCatching {
-                            detailScreenGraphicsLayer.toImageBitmap().asAndroidBitmap()
-                        }.getOrNull()
-                        val sourcePopupSnapshot = try {
-                            capturePopupFrame()
-                        } finally {
-                            detailPopupCaptureActive = false
-                        }
-                        if (sourceUnderlaySnapshot != null && sourcePopupSnapshot != null) {
-                            composeDetailMorphSnapshot(sourceUnderlaySnapshot, sourcePopupSnapshot)
-                        } else {
-                            null
-                        }
-                    } else {
-                        null
-                    }
-                    val fullSnapshot = windowSnapshot?.bitmap ?: layeredSnapshot
-                    // This source is not a normal page: the home underlay and QuickSheet are two
-                    // sibling draw layers in the root Miuix Scaffold. Preserve their already
-                    // composed frame for the destination-side depth/blur renderer; cross-window
-                    // blur cannot reconstruct that Compose backdrop topology on ColorOS.
-                    val snapshotOriginInWindow = windowSnapshot?.originInWindow
-                        ?: homeRootPositionInWindow
-                    val sourceBoundsInSnapshot = Rect(
-                        left = sourceBoundsInWindow.left - snapshotOriginInWindow.x,
-                        top = sourceBoundsInWindow.top - snapshotOriginInWindow.y,
-                        right = sourceBoundsInWindow.right - snapshotOriginInWindow.x,
-                        bottom = sourceBoundsInWindow.bottom - snapshotOriginInWindow.y
-                    )
-                    val buttonSnapshot = fullSnapshot?.cropToAnchoredBounds(sourceBoundsInSnapshot)
-                    com.xiaomanjun.sleepdownschedule.glass.GlassBackendTrace.durationSince(
-                        "Detail.InputThroughCapture", detailInputNanos
-                    )
-                    val openingAnchor = TransitionAnchorFrame(
-                        boundsInWindow = sourceBoundsInWindow,
-                        cornerRadiusPx = with(density) { 25.dp.toPx() },
-                        bitmap = buttonSnapshot
-                    )
-                    // The destination must not race the draft write. Keeping the real button in
-                    // place while saving gives the translucent destination an unchanged live
-                    // underlay and ensures the first detailed-settings composition sees the
-                    // committed values.
-                    val detailSaveNanos = System.nanoTime()
-                    saveBeforeOpening {
-                        com.xiaomanjun.sleepdownschedule.glass.GlassBackendTrace.durationSince(
-                            "Detail.Save", detailSaveNanos
-                        )
-                        appScope.launch {
-                            com.xiaomanjun.sleepdownschedule.glass.GlassBackendTrace.durationSince(
-                                "Detail.InputToOpenDispatch", detailInputNanos
-                            )
-                            ActivityTransitionCoordinator.open(
-                                activity = activity,
-                                routeId = TransitionRouteId.QuickSheetToSettingsDetail,
-                                intent = Intent(activity, QuickSheetSettingsDetailActivity::class.java)
-                                    .putExtra(SettingsDetailPageExtra, SettingsPage.Schedule.name)
-                                    .putExtra(ScheduleCustomizeIdExtra, scheduleId),
-                                payload = TransitionPayload(
-                                    openingAnchor = openingAnchor,
-                                    returnAnchorProvider = StaticTransitionAnchorProvider(openingAnchor),
-                                    backgroundBitmap = fullSnapshot
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-        )
 
         // Keep the course editor inside the same root stack as the stock MIUIX popup
         // host. The host stays in its 1.0.6 position and therefore preserves the manager
