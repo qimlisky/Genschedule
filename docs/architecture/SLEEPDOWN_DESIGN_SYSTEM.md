@@ -171,8 +171,8 @@ Activity / Morph host
 - 级联折叠菜单同步采用参考实现的 16dp 外框、锚点冻结、父标题/子项顺序和父子层 Morph。SleepDown 只保留根层 Backdrop 防自采样、应用明暗主题、真实 IME 可用窗口和 Overlay 返回优先级；不得在业务页另写一套近似 Popup。材质使用 24dp blur + vibrancy，浅色白色 0.72、深色 `#242424` 0.80，并保留轻量高光边沿；无 Backdrop 时必须保持相同几何。
 - 级联 Popup 的返回处理使用 Overlay 优先级，必须先于 IME 消费：第一次返回收二级菜单，第二次返回收一级菜单，第三次才由页面/系统收键盘。空白处点击不逐层回退，而是第一次同时关闭一、二级菜单，并保持输入焦点与 IME；菜单卸载后的第二次空白点击再交给页面的键盘策略。
 - Popup host 与页面 producer 同样采用兄弟层拓扑；Popup 只消费该页面显式传入的采样域。找不到 Backdrop 时按相同几何回退稳定表面，不得跨根层寻找 producer。
-- 多课表快速设置不属于 Popup：必须保留 `QuickScheduleSettingsSheets` 在 1.2.0 中已验收的半屏 QuickSheet 高度、内容顺序、操作按钮和日期子 Sheet。可以通过公共 QuickSheet token 等价更新材质，不得被 Popup 视觉样式、级联布局或菜单选中态改造污染。
-- 多课表快速设置的“详细设置”先保存当前 QuickSheet 草稿，再通过 `QuickSheetToSettingsDetail` 跨 Activity Morph 打开 `SettingsDetailActivity`。目标窗口在 `super.onCreate` 前切换为透明 Morph 窗口，直接使用实时按钮 bounds 展开；QuickSheet 留在原 Activity 下层，返回后原样恢复。不得再复制或裁切 Bitmap、挂局部 Overlay 或写第二套 Morph。
+- 多课表快速设置不再使用 QuickSheet。历史上 1.2.0 验收的半屏 `QuickScheduleSettingsSheets`（高度、内容顺序、操作按钮、日期子 Sheet）已随其内容被「课表详细设置」完整覆盖而废弃，不得恢复，也不得为其新增或复制第二套 Morph。切换课表改由首页周视图长按入口 pill 或三点菜单「切换课表」进入 Picker（`SchedulePickerOverlay`），课表详细设置改由 `SettingsPage.Schedule` / `SettingsDetailActivity` 打开。
+- `QuickSheetToSettingsDetail` 跨 Activity Morph 路线本身保留：目标窗口在 `super.onCreate` 前切换为透明 Morph 窗口，直接使用实时按钮 bounds 展开，不得再复制或裁切 Bitmap、挂局部 Overlay 或写第二套 Morph。该路线原先由 QuickSheet 内的“详细设置”触发，QuickSheet 废弃后触发方改为首页三点菜单「课表详细设置」与设置页进入 `SettingsPage.Schedule`，路线与 `QuickSheetSettingsDetailActivity` 作为稳定 wire id 不变。
 
 ## 色彩与玻璃前景色
 
@@ -212,6 +212,8 @@ Activity / Morph host
 | Dialog 标题栏高度 | 70dp |
 | Dialog 操作高度 | 50dp |
 | Picker 默认正文间距 / 微边距 | 12dp / 2dp |
+| 手机周视图课程卡圆角基准 | 6dp（`PhoneWeekCardCornerRadiusDp`，滑条中点即此值） |
+| 手机周视图课程卡内描边 | 1dp 白色内描边；浅色 alpha 0.18、深色 0.24（`tokens.borderAlpha` × 浅色 0.75）。仅周视图及其抬起浮卡启用，日视图与课程管理不启用 |
 
 Token 表示全局语言。单个成熟 Morph 的源/目标圆角、轨迹、时序和弹簧参数继续留在 renderer，不因为数值相似就搬进全局 Token。
 
