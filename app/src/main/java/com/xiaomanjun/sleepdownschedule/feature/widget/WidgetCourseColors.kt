@@ -69,7 +69,8 @@ internal object WidgetCourseColors {
         val resolved = buildCourseCardColorAssignments(
             state.courses,
             resolvedPalette,
-            tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT
+            tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT,
+            identityHues = courseCardUsesGeneratedHues(state.config)
         )
             .mapValues { (_, color) -> color.toInt() }
         synchronized(cache) { cache[key] = resolved }

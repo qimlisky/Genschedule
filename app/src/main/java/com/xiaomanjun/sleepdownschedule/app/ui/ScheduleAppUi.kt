@@ -1522,11 +1522,15 @@ fun CourseScheduleAppUi(
     ) {
         resolvedCourseCardPalette(visualState.config, wallpaperImages.representativeColors)
     }
+    // One hue per course name, so the palette grows with the schedule. Read once per config
+    // change; it also has to be a remember key because it can flip on the wallpaper alone.
+    val homeCourseUsesGeneratedHues = courseCardUsesGeneratedHues(visualState.config)
     val homeCourseColorAssignments = remember(
         visualState.config.id,
         visualState.config.courseCardColorMode,
         visualState.config.cardColorArgb,
         visualState.config.courseCardPalette,
+        homeCourseUsesGeneratedHues,
         homeCourseColorSignature,
         homeCoursePalette
     ) {
@@ -1535,8 +1539,14 @@ fun CourseScheduleAppUi(
         buildCourseCardColorAssignments(
             visualState.courses,
             homeCoursePalette,
-            tonalFamily = visualState.config.courseCardColorMode == CourseCardColorMode.GRADIENT
+            tonalFamily = visualState.config.courseCardColorMode == CourseCardColorMode.GRADIENT,
+            identityHues = homeCourseUsesGeneratedHues
         )
+    }
+    // Per-course swatches must show the colours the cards actually use. Assigned colours are a
+    // read-only sink for the pickers and are never fed back into the assignment above.
+    val homeCoursePickerPalette = remember(homeCourseUsesGeneratedHues, homeCourseColorAssignments) {
+        if (homeCourseUsesGeneratedHues) homeCourseColorAssignments.values.distinct() else null
     }
     val homeCaptureFrameKey = remember(
         captureRenderToken,
@@ -2306,6 +2316,7 @@ fun CourseScheduleAppUi(
         LocalHomeReadability provides homeReadabilityContext,
         LocalCourseCardPalette provides homeCoursePalette,
         LocalCourseCardColorAssignments provides homeCourseColorAssignments,
+        LocalCourseCardPickerPalette provides homeCoursePickerPalette,
         LocalGlassSceneState provides glassSceneState,
         LocalCourseGlassRestoreRegistry provides courseGlassRestoreRegistry,
         LocalCourseGlassMaterialRevealProgress provides courseGlassMaterialRevealProgressProvider,
