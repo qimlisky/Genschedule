@@ -853,7 +853,8 @@ fun CourseScheduleAppUi(
     var jumpWeekDialogMounted by remember { mutableStateOf(false) }
     var jumpWeekDialogVisible by remember { mutableStateOf(false) }
     var pendingJumpWeekDialog by remember { mutableStateOf(false) }
-    var pendingOpenScheduleSettings by remember { mutableStateOf(false) }
+    var pendingSwitchSchedule by remember { mutableStateOf(false) }
+    var pendingOpenScheduleDetail by remember { mutableStateOf(false) }
     var homeMenuActivityLaunched by remember { mutableStateOf(false) }
     var destinationOwnsButtonReturn by remember { mutableStateOf(false) }
     var destinationCollapseHandedOff by remember { mutableStateOf(false) }
@@ -1105,7 +1106,7 @@ fun CourseScheduleAppUi(
             source = sourceButton,
             rootSize = homeReadabilityRootSize,
             density = density.density,
-            actionCount = 6,
+            actionCount = HomeAddMenuTitles.size,
             adaptiveMetrics = homeAdaptiveMetrics
         )
         return HomeMenuDestinationRequest(
@@ -3318,50 +3319,76 @@ fun CourseScheduleAppUi(
         pendingJumpWeekDialog = true
         homeAnchoredOverlayRequest = null
     }
-    val latestOpenScheduleSettings = rememberUpdatedState<() -> Unit> {
-        pendingOpenScheduleSettings = true
+    val latestOpenSwitchSchedule = rememberUpdatedState<() -> Unit> {
+        pendingSwitchSchedule = true
+        homeAnchoredOverlayRequest = null
+    }
+    val latestOpenScheduleDetail = rememberUpdatedState<() -> Unit> {
+        pendingOpenScheduleDetail = true
         homeAnchoredOverlayRequest = null
     }
     val homeAddActions = remember {
         listOf(
-            AddMenuAction(R.drawable.ic_add_course, "添加单节课") {
+            AddMenuAction(R.drawable.ic_add_course, HomeAddMenuTitles[0]) {
                 latestOpenHomeMenuDestination.value(HomeMenuDestinationKind.AddCourse)
             },
-            AddMenuAction(R.drawable.ic_ai_import, "手动导入课表") {
+            AddMenuAction(R.drawable.ic_ai_import, HomeAddMenuTitles[1]) {
                 latestOpenHomeMenuDestination.value(HomeMenuDestinationKind.ManualImport)
             },
-            AddMenuAction(R.drawable.ic_school_import, "教务系统导入") {
+            AddMenuAction(R.drawable.ic_school_import, HomeAddMenuTitles[2]) {
                 latestOpenEduSchoolSelect.value()
             },
-            AddMenuAction(R.drawable.ic_courses, "课程管理") {
+            AddMenuAction(R.drawable.ic_courses, HomeAddMenuTitles[3]) {
                 latestOpenCourseManagement.value()
             },
-            AddMenuAction(R.drawable.ic_material_event, "跳转周数") {
+            AddMenuAction(R.drawable.ic_material_event, HomeAddMenuTitles[4]) {
                 latestOpenJumpWeekDialog.value()
             },
-            AddMenuAction(R.drawable.ic_settings, "课表设置") {
-                latestOpenScheduleSettings.value()
+            AddMenuAction(R.drawable.ic_swap_schedule, HomeAddMenuTitles[5]) {
+                latestOpenSwitchSchedule.value()
+            },
+            AddMenuAction(R.drawable.ic_settings, HomeAddMenuTitles[6]) {
+                latestOpenScheduleDetail.value()
             }
         )
     }
 
     LaunchedEffect(
-        pendingOpenScheduleSettings,
+        pendingSwitchSchedule,
         homeAnchoredMorphState.phase,
         screen,
         state.config.id
     ) {
-        if (!pendingOpenScheduleSettings || screen !is Screen.Home) return@LaunchedEffect
+        if (!pendingSwitchSchedule || screen !is Screen.Home) return@LaunchedEffect
         if (homeAnchoredMorphState.phase != HomeAnchoredOverlayPhase.Idle) return@LaunchedEffect
-        pendingOpenScheduleSettings = false
+        pendingSwitchSchedule = false
         if (pickerState.phase is CustomizeUiState.Home) {
-            // Equivalent to long-pressing the schedule homepage and tapping the 课表设置
+            // Equivalent to long-pressing the schedule homepage and tapping the 切换课表
             // entry pill: open the in-app multi-schedule customization page directly.
             pickerState.phase = CustomizeUiState.ShowingEntryButton
             showScheduleEntryPill = true
             prewarmCurrentScheduleSnapshot()
             enterCustomizePage()
         }
+    }
+
+    LaunchedEffect(
+        pendingOpenScheduleDetail,
+        homeAnchoredMorphState.phase,
+        screen,
+        state.config.id
+    ) {
+        if (!pendingOpenScheduleDetail || screen !is Screen.Home) return@LaunchedEffect
+        if (homeAnchoredMorphState.phase != HomeAnchoredOverlayPhase.Idle) return@LaunchedEffect
+        pendingOpenScheduleDetail = false
+        // Wait for the menu to retract before leaving the activity, so the transition never
+        // overlaps the closing menu. Same route the settings list uses for 课表详细设置.
+        context.openRegisteredActivity(
+            TransitionRouteId.HomeToSettingsDetail,
+            Intent(context, SettingsDetailActivity::class.java)
+                .putExtra(SettingsDetailPageExtra, SettingsPage.Schedule.name)
+                .putExtra(ScheduleCustomizeIdExtra, state.config.id)
+        )
     }
 
     LaunchedEffect(
@@ -5285,6 +5312,31 @@ internal fun HomeIconButtonVisual(
     }
 }
 
+/**
+ * Labels of the home three-dot menu, in display order.
+ *
+ * Single source of truth for three consumers that previously drifted apart: the menu itself, the
+ * action count that sizes the menu's target rect, and the static replica
+ * `HomeMenuActivitySourceFallback` that stands in for the menu while a cross-activity morph runs.
+ * The replica had already fallen out of sync once (a missing row and two swapped rows).
+ */
+internal val HomeAddMenuTitles = listOf(
+    "添加单节课",
+    "手动导入课表",
+    "教务系统导入",
+    "课程管理",
+    "跳转周数",
+    "切换课表",
+    "课表详细设置"
+)
+
+/**
+ * Row index of a home menu action within the menu's row list, where the view-mode row comes first.
+ * The cross-activity morph highlights this row in the static replica, so it has to be derived from
+ * the shared titles rather than written down twice.
+ */
+internal fun homeMenuRowIndex(label: String): Int = 1 + HomeAddMenuTitles.indexOf(label)
+
 data class AddMenuAction(
     val iconRes: Int? = null,
     val label: String,
@@ -5529,7 +5581,7 @@ fun ScheduleManagerEntryPill(
                         contentPadding = PaddingValues(horizontal = 18.dp)
                 ) {
                     Text(
-                        "课表设置",
+                        "切换课表",
                         color = glassForegroundColor(config),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
@@ -5547,7 +5599,7 @@ fun ScheduleManagerEntryPill(
                 ) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "课表设置",
+                            "切换课表",
                             color = glassForegroundColor(config),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
@@ -7418,7 +7470,7 @@ open class EduSchoolSelectActivityHost : ComponentActivity() {
                     sourceContent = {
                         HomeMenuActivitySourceFallback(
                             config = state.config,
-                            highlightedRowIndex = 4
+                            highlightedRowIndex = homeMenuRowIndex("教务系统导入")
                         )
                     }
                 ) { requestClose ->
