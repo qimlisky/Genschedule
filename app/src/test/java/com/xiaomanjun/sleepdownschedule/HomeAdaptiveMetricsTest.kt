@@ -210,6 +210,8 @@ class HomeAdaptiveMetricsTest {
         assertEquals(6.dp, phone)
         assertTrue(shortTabletCard >= 10.dp)
         assertTrue(tallTabletCard > shortTabletCard)
-        assertTrue(tallTabletCard <= 16.dp)
+        // The tablet branch adds a 3dp boost on top of the base radius, so the upper bound here is
+        // baseRadius + boost and not the pre-boost ceiling.
+        assertTrue(tallTabletCard <= 20.dp)
     }
 }
