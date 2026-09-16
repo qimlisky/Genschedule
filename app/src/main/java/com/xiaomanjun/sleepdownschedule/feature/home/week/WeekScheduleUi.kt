@@ -361,7 +361,7 @@ internal fun SinglePillWeekScheduleScreen(
     // boundless mode the rail is narrowed so the period/time header shifts left, the left
     // clearance to the grid shrinks, and the freed width flows into every course column equally.
     val boundless = style == WeekViewStyle.BOUNDLESS
-    val rowHeaderWidth = if (boundless) BoundlessWeekRowHeaderWidth else 56.dp
+    val rowHeaderWidth = if (boundless) BoundlessWeekRowHeaderWidth else 38.dp //56.dp
     val today = LocalDate.now()
     val weekStart = scheduleWeekStartDate(state.config, displayWeek, today)
     val now = LocalTime.now()
@@ -693,7 +693,7 @@ internal fun SinglePillWeekScheduleScreen(
                                     val isCurrent = currentPeriod?.periodIndex == period.periodIndex
                                     Box(
                                         modifier = if (isCurrent) Modifier
-                                            .background(ComposeColor(0xFF0A84FF), RoundedRectangle(5.dp))
+                                            .background(ComposeColor(0xFF0A84FF), RoundedRectangle(2.dp))
                                             .padding(horizontal = 4.dp, vertical = 1.dp)
                                         else Modifier,
                                         contentAlignment = Alignment.Center
@@ -2940,10 +2940,18 @@ fun WeekCourseBlock(
     val hasLocation = locationText.isNotBlank()
     val hasTeacher = !course.teacher.isNullOrBlank()
     val resolvedCardColor = if (courseCardUsesAssignments(config)) courseCardBaseColor(config, course) else cardColor
+//    val courseTextColor =
+//        if (backdrop != null && config.courseCardGlassEnabled) LocalAdaptiveGlass.current.contentColor
+//        else if (config.courseCardGlassEnabled) readableOn(resolvedCardColor)
+//        else glassForegroundColor(config)
     val courseTextColor =
-        if (backdrop != null && config.courseCardGlassEnabled) LocalAdaptiveGlass.current.contentColor
-        else if (config.courseCardGlassEnabled) readableOn(resolvedCardColor)
-        else glassForegroundColor(config)
+        if (backdrop != null && config.courseCardGlassEnabled && config.hasAnyWallpaper())
+            LocalAdaptiveGlass.current.contentColor
+        else if (config.courseCardGlassEnabled && config.hasAnyWallpaper())
+            readableOn(resolvedCardColor)
+        else if (appUsesDarkTheme(config)) ComposeColor.Black   // 深色 → 黑
+        else ComposeColor.White                                  // 浅色 → 白
+
     val density = LocalDensity.current
     val tailDirection = if (weekMotionOutgoing) -weekMotionDirection else weekMotionDirection
     val tailBase = with(density) { (32.dp + ((periodIndex - 1).coerceAtLeast(0).coerceAtMost(9) * 9f).dp + (stackIndex * 16f).dp).toPx() }
@@ -3505,7 +3513,8 @@ fun WeekCourseBlock(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = horizontalPadding, vertical = verticalPadding),
+                        //.padding(horizontal = horizontalPadding, vertical = verticalPadding)
+                        .padding(top = 4.dp, start = 0.5f.dp, end = 0.5f.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Top
                 ) {

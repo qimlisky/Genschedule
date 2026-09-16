@@ -665,9 +665,8 @@ fun appUsesDarkTheme(config: ScheduleConfigEntity): Boolean {
 }
 
 @Composable
-//没有壁纸，浅色主题，白字。深色主题，黑字
+//没有壁纸时,深色->false,浅色->true
 fun glassUsesLightStyle(config: ScheduleConfigEntity): Boolean {
-//    if (config.wallpaperUri.isNullOrBlank()) return !appUsesDarkTheme(config)
     if (config.wallpaperUri.isNullOrBlank()) return !appUsesDarkTheme(config)
     return when {
         config.wallpaperBrightness < 0.72f -> false
