@@ -6804,7 +6804,7 @@ fun LiquidMenuButton(
             blurRadius = 8.dp,
             lensHeight = 24.dp,
             lensAmount = 28.dp,
-            chromaticAberration = false
+            chromaticAberration = false,
         ) {
             Text(label, color = textColor, style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
         }
