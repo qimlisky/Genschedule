@@ -3502,56 +3502,51 @@ fun WeekCourseBlock(
                 0.dp
             }
             val centerReserve = maxOf(locationReserve, teacherReserve) + 1.dp
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = horizontalPadding, vertical = verticalPadding)
-            ) {
-                if (hasLocation && locationLines > 0) {
-                    Text(
-                        locationText,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .fillMaxWidth(),
-                        fontSize = locationFont,
-                        lineHeight = locationLineHeight,
-                        fontWeight = FontWeight.Medium,
-                        color = courseTextColor.copy(alpha = 0.78f),
-                        maxLines = locationLines,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
-                    )
-                }
-                Text(
-                    course.name,
+                Column(
                     modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxWidth()
-                        .padding(vertical = centerReserve),
-                    fontSize = nameFont,
-                    lineHeight = nameLineHeight,
-                    fontWeight = FontWeight.SemiBold,
-                    color = courseTextColor,
-                    maxLines = nameLines,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
-                if (canShowTeacher) {
+                        .fillMaxSize()
+                        .padding(horizontal = horizontalPadding, vertical = verticalPadding),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Top
+                ) {
                     Text(
-                        course.teacher,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth(),
-                        fontSize = teacherFont,
-                        lineHeight = teacherLineHeight,
-                        fontWeight = FontWeight.Normal,
-                        color = courseTextColor.copy(alpha = 0.58f),
-                        maxLines = 1,
+                        course.name,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = nameFont,
+                        lineHeight = nameLineHeight,
+                        fontWeight = FontWeight.SemiBold,
+                        color = courseTextColor,
+                        maxLines = nameLines,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center
                     )
+                    if (hasLocation && locationLines > 0) {
+                        Text(
+                            "@$locationText",
+                            modifier = Modifier.fillMaxWidth(),
+                            fontSize = locationFont,
+                            lineHeight = locationLineHeight,
+                            fontWeight = FontWeight.Medium,
+                            color = courseTextColor.copy(alpha = 0.78f),
+                            maxLines = locationLines,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    if (canShowTeacher) {
+                        Text(
+                            course.teacher,
+                            modifier = Modifier.fillMaxWidth(),
+                            fontSize = teacherFont,
+                            lineHeight = teacherLineHeight,
+                            fontWeight = FontWeight.Normal,
+                            color = courseTextColor.copy(alpha = 0.58f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
-            }
             }
             }
             if (conflictWarning && !editMode && !customTimeLocked) {

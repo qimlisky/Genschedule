@@ -42,7 +42,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawOutline
+//import androidx.compose.ui.graphics.drawscope.drawOutline
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -664,7 +665,9 @@ fun appUsesDarkTheme(config: ScheduleConfigEntity): Boolean {
 }
 
 @Composable
+//没有壁纸，浅色主题，白字。深色主题，黑字
 fun glassUsesLightStyle(config: ScheduleConfigEntity): Boolean {
+//    if (config.wallpaperUri.isNullOrBlank()) return !appUsesDarkTheme(config)
     if (config.wallpaperUri.isNullOrBlank()) return !appUsesDarkTheme(config)
     return when {
         config.wallpaperBrightness < 0.72f -> false
@@ -1455,6 +1458,7 @@ fun CourseGlassCard(
         // The hairline is drawn on an outline inset by half the stroke so the whole stroke lands
         // inside the card. A centred border would spill half of itself into the 4dp gutter the
         // week grid leaves between cards.
+        //管理课程卡片的
         if (cardOutline) {
             Box(
                 Modifier
@@ -1474,7 +1478,8 @@ fun CourseGlassCard(
                                     layoutDirection = layoutDirection,
                                     density = this
                                 ),
-                                color = Color.White,
+                                //卡片颜色
+                                color = Color(0xFF5B5B5B),
                                 alpha = cardOutlineAlpha,
                                 style = Stroke(width = strokeWidth)
                             )
