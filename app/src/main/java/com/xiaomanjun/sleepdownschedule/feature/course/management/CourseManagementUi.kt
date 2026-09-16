@@ -489,7 +489,8 @@ internal fun HomeMenuActivitySourceFallback(
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        listOf("日视图 / 周视图", "添加单节课", "课程管理", "手动导入课表", "教务系统导入", "课表设置")
+        // Row list of the real menu: the view-mode row, then the actions in order.
+        (listOf("日视图 / 周视图") + HomeAddMenuTitles)
             .forEachIndexed { index, label ->
                 Row(
                     Modifier.fillMaxWidth().height(42.dp),

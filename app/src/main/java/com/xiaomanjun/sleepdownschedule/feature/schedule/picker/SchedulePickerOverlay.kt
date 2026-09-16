@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -48,7 +47,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,7 +71,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.FocusRequester
@@ -100,8 +97,6 @@ import com.xiaomanjun.sleepdownschedule.glass.sleepDownGlassSurface
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.max
-import java.time.LocalDate
 
 /** One state machine owns every gesture lock and transition in the picker chain. */
 sealed interface CustomizeUiState {
@@ -121,18 +116,6 @@ sealed interface CustomizeUiState {
 }
 
 enum class ScheduleShareType { TOKEN, ICS }
-
-data class QuickScheduleDraft(
-    val scheduleId: Int,
-    val totalWeeks: Int,
-    val currentWeek: Int,
-    val autoCurrentWeek: Boolean,
-    val hideEmptyWeekends: Boolean,
-    val termStartDate: String
-)
-
-private fun daysInMonth(year: Int, month: Int): Int =
-    LocalDate.of(year, month, 1).lengthOfMonth()
 
 @Stable
 class SchedulePickerState {
@@ -188,374 +171,6 @@ class SchedulePickerState {
 }
 
 @Composable
-fun QuickScheduleSettingsSheets(
-    draft: QuickScheduleDraft?,
-    config: ScheduleConfigEntity,
-    backdrop: Backdrop?,
-    onDraftChange: (QuickScheduleDraft) -> Unit,
-    onDismiss: () -> Unit,
-    onDismissFinished: () -> Unit,
-    onSave: (QuickScheduleDraft, () -> Unit) -> Unit,
-    suppressDetailedButton: Boolean = false,
-    onDetailedSettings: (Int, Rect, ((() -> Unit) -> Unit)) -> Unit
-) {
-    var retainedDraft by remember { mutableStateOf(draft) }
-    var saving by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var dateYear by remember { mutableIntStateOf(LocalDate.now().year) }
-    var dateMonth by remember { mutableIntStateOf(LocalDate.now().monthValue) }
-    var dateDay by remember { mutableIntStateOf(LocalDate.now().dayOfMonth) }
-    var totalWeeksText by remember(draft?.scheduleId) { mutableStateOf(draft?.totalWeeks?.toString().orEmpty()) }
-    var currentWeekText by remember(draft?.scheduleId) { mutableStateOf(draft?.currentWeek?.toString().orEmpty()) }
-    var detailButtonBounds by remember(draft?.scheduleId) { mutableStateOf<Rect?>(null) }
-    var detailLaunching by remember(draft?.scheduleId) { mutableStateOf(false) }
-
-    LaunchedEffect(draft?.scheduleId) {
-        if (draft != null) {
-            retainedDraft = draft
-            totalWeeksText = draft.totalWeeks.toString()
-            currentWeekText = draft.currentWeek.toString()
-        }
-    }
-
-    fun latestDraft(): QuickScheduleDraft? = retainedDraft ?: draft
-
-    fun commitDraft(next: QuickScheduleDraft) {
-        // Update the sheet-owned source of truth before notifying its parent. Otherwise another
-        // control clicked before the parent's next composition can copy an older draft and undo
-        // the preceding date/toggle change.
-        retainedDraft = next
-        onDraftChange(next)
-    }
-
-    fun beginDateSelection(value: String) {
-        val date = runCatching { LocalDate.parse(value) }.getOrNull() ?: LocalDate.now()
-        dateYear = date.year
-        dateMonth = date.monthValue
-        dateDay = date.dayOfMonth
-        showDatePicker = true
-    }
-
-    fun saveAndDismiss() {
-        val raw = latestDraft() ?: return
-        if (saving) return
-        val total = totalWeeksText.toIntOrNull()?.coerceIn(1, 60) ?: raw.totalWeeks
-        val manual = currentWeekText.toIntOrNull()?.coerceIn(1, total) ?: raw.currentWeek.coerceIn(1, total)
-        val current = resolveScheduleCurrentWeek(config, total, manual, raw.termStartDate, raw.autoCurrentWeek)
-        val value = raw.copy(totalWeeks = total, currentWeek = current)
-        saving = true
-        onSave(value) {
-            saving = false
-            onDismiss()
-        }
-    }
-
-    top.yukonga.miuix.kmp.overlay.OverlayBottomSheet(
-        show = draft != null,
-        title = "课表设置",
-        startAction = {
-            QuickSheetLiquidAction(
-                label = "取消",
-                enabled = !saving,
-                backdrop = backdrop,
-                config = config,
-                onClick = ::saveAndDismiss
-            )
-        },
-        endAction = {
-            QuickSheetLiquidAction(
-                label = if (saving) "保存中" else "完成",
-                enabled = !saving,
-                backdrop = backdrop,
-                config = config,
-                primary = true,
-                onClick = ::saveAndDismiss
-            )
-        },
-        onDismissRequest = { if (!saving) saveAndDismiss() },
-        onDismissFinished = {
-            retainedDraft = null
-            onDismissFinished()
-        },
-        allowDismiss = !saving,
-        backgroundColor = Color.Transparent,
-        modifier = Modifier.heightIn(max = 590.dp),
-        surfaceModifier = Modifier.quickSheetBackdropModifier(backdrop, config, blurRadius = 28.dp)
-    ) {
-        retainedDraft?.let { value ->
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                SettingsGroup(
-                    backdrop = backdrop,
-                    config = config,
-                    modifier = Modifier.fillMaxWidth(),
-                    surfaceModifier = Modifier.quickSheetBackdropModifier(
-                        backdrop = backdrop,
-                        config = config,
-                        blurRadius = 16.dp,
-                        inner = true
-                    ),
-                    surfaceColorOverride = Color.Transparent
-                ) {
-                    SettingsTextFieldRow(
-                        title = "总周数",
-                        value = totalWeeksText,
-                        onValueChange = { input ->
-                            totalWeeksText = input.filter(Char::isDigit).take(2)
-                            totalWeeksText.toIntOrNull()?.coerceIn(1, 60)?.let { total ->
-                                val latest = latestDraft() ?: return@let
-                                val nextWeek = resolveScheduleCurrentWeek(
-                                    config,
-                                    total,
-                                    latest.currentWeek.coerceAtMost(total),
-                                    latest.termStartDate,
-                                    latest.autoCurrentWeek
-                                )
-                                currentWeekText = nextWeek.toString()
-                                commitDraft(latest.copy(totalWeeks = total, currentWeek = nextWeek))
-                            }
-                        },
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                    )
-                    SettingsTextFieldRow(
-                        title = "当前周",
-                        value = currentWeekText,
-                        onValueChange = { input ->
-                            currentWeekText = input.filter(Char::isDigit).take(2)
-                            latestDraft()?.let { latest ->
-                                currentWeekText.toIntOrNull()
-                                    ?.coerceIn(1, latest.totalWeeks.coerceAtLeast(1))
-                                    ?.let { week -> commitDraft(latest.copy(currentWeek = week)) }
-                            }
-                        },
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                        enabled = !value.autoCurrentWeek
-                    )
-                    SettingsToggleRow(
-                        title = "自动计算当前周",
-                        subtitle = "学期状态：${scheduleTermStatusDescription(
-                            config.copy(
-                                totalWeeks = value.totalWeeks,
-                                currentWeek = value.currentWeek,
-                                autoCurrentWeek = value.autoCurrentWeek,
-                                termStartDate = value.termStartDate.ifBlank { null }
-                            ), LocalDate.now()
-                        )}",
-                        checked = value.autoCurrentWeek,
-                        backdrop = backdrop,
-                        onCheckedChange = { enabled ->
-                            latestDraft()?.let { latest ->
-                                val nextWeek = resolveScheduleCurrentWeek(
-                                    config,
-                                    latest.totalWeeks,
-                                    latest.currentWeek,
-                                    latest.termStartDate,
-                                    enabled || latest.autoCurrentWeek
-                                )
-                                currentWeekText = nextWeek.toString()
-                                commitDraft(latest.copy(autoCurrentWeek = enabled, currentWeek = nextWeek))
-                            }
-                        }
-                    )
-                    SettingsToggleRow(
-                        title = "隐藏空周末",
-                        subtitle = "周六、周日无课时自动收起",
-                        checked = value.hideEmptyWeekends,
-                        backdrop = backdrop,
-                        onCheckedChange = { checked ->
-                            latestDraft()?.let { latest ->
-                                commitDraft(latest.copy(hideEmptyWeekends = checked))
-                            }
-                        }
-                    )
-                    SettingsPickerValueRow(
-                        title = "学期开始日期",
-                        value = value.termStartDate,
-                        onClick = { beginDateSelection(value.termStartDate) }
-                    )
-                }
-                if (!suppressDetailedButton) {
-                    if (backdrop != null) LiquidButton(
-                        onClick = {
-                            val raw = latestDraft() ?: return@LiquidButton
-                            val bounds = detailButtonBounds ?: return@LiquidButton
-                            if (saving || detailLaunching) return@LiquidButton
-                            val total = totalWeeksText.toIntOrNull()?.coerceIn(1, 60) ?: raw.totalWeeks
-                            val current = currentWeekText.toIntOrNull()?.coerceIn(1, total)
-                                ?: raw.currentWeek.coerceIn(1, total)
-                            val value = raw.copy(totalWeeks = total, currentWeek = current)
-                            detailLaunching = true
-                            onDetailedSettings(value.scheduleId, bounds) { afterSaved ->
-                                saving = true
-                                onSave(value) {
-                                    saving = false
-                                    detailLaunching = false
-                                    afterSaved()
-                                }
-                            }
-                        },
-                        backdrop = backdrop,
-                        isInteractive = !saving && !detailLaunching,
-                        clickTargetEnabled = !saving && !detailLaunching,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned { coordinates ->
-                                // The QuickSheet lives inside an independent Miuix Dialog window,
-                                // so localToRoot would resolve against that dialog root. Use
-                                // window coordinates instead — they are shared with the main
-                                // window the destination overlay renders in — and let the caller
-                                // normalize them against the recorded home root.
-                                val position = coordinates.positionInWindow()
-                                val size = coordinates.size
-                                detailButtonBounds = Rect(
-                                    left = position.x,
-                                    top = position.y,
-                                    right = position.x + size.width,
-                                    bottom = position.y + size.height
-                                )
-                            },
-                        height = 52.dp,
-                        blurRadius = 12.dp,
-                        lensHeight = 30.dp,
-                        lensAmount = 42.dp,
-                        surfaceColor = if (appUsesDarkTheme(config)) {
-                            Color(0xFF272C36).copy(alpha = 0.86f)
-                        } else {
-                            Color(0xFFF3F6FB).copy(alpha = 0.84f)
-                        },
-                        contentPadding = PaddingValues(horizontal = 24.dp)
-                    ) {
-                        Text("详细设置", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
-                    } else Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                            .onGloballyPositioned { coordinates ->
-                                val position = coordinates.positionInWindow()
-                                val size = coordinates.size
-                                detailButtonBounds = Rect(
-                                    position.x,
-                                    position.y,
-                                    position.x + size.width,
-                                    position.y + size.height
-                                )
-                            }
-                            .clip(Capsule())
-                            .background(
-                                if (appUsesDarkTheme(config)) Color(0xFF30343D)
-                                else Color(0xFFE8ECF3)
-                            )
-                            .clickable(enabled = !saving && !detailLaunching) {
-                                val raw = latestDraft() ?: return@clickable
-                                val bounds = detailButtonBounds ?: return@clickable
-                                if (saving || detailLaunching) return@clickable
-                                val total = totalWeeksText.toIntOrNull()?.coerceIn(1, 60) ?: raw.totalWeeks
-                                val current = totalWeeksText.toIntOrNull()?.let {
-                                    currentWeekText.toIntOrNull()?.coerceIn(1, total)
-                                } ?: raw.currentWeek.coerceIn(1, total)
-                                val updated = raw.copy(totalWeeks = total, currentWeek = current)
-                                detailLaunching = true
-                                onDetailedSettings(updated.scheduleId, bounds) { afterSaved ->
-                                    saving = true
-                                    onSave(updated) {
-                                        saving = false
-                                        detailLaunching = false
-                                        afterSaved()
-                                    }
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("详细设置", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
-                    }
-                } else Spacer(Modifier.fillMaxWidth().height(52.dp))
-            }
-        }
-    }
-
-    top.yukonga.miuix.kmp.overlay.OverlayBottomSheet(
-        show = showDatePicker && draft != null,
-        title = "选择日期",
-        startAction = {
-            QuickSheetLiquidAction(
-                label = "取消",
-                enabled = true,
-                backdrop = backdrop,
-                config = config,
-                onClick = { showDatePicker = false }
-            )
-        },
-        endAction = {
-            QuickSheetLiquidAction(
-                label = "确定",
-                enabled = true,
-                backdrop = backdrop,
-                config = config,
-                primary = true,
-                onClick = {
-                    val safeDay = dateDay.coerceAtMost(daysInMonth(dateYear, dateMonth))
-                    latestDraft()?.let {
-                        val nextDate = "%04d-%02d-%02d".format(dateYear, dateMonth, safeDay)
-                        val nextWeek = resolveScheduleCurrentWeek(
-                            config,
-                            it.totalWeeks,
-                            it.currentWeek,
-                            nextDate,
-                            it.autoCurrentWeek
-                        )
-                        currentWeekText = nextWeek.toString()
-                        commitDraft(it.copy(termStartDate = nextDate, currentWeek = nextWeek))
-                    }
-                    showDatePicker = false
-                }
-            )
-        },
-        onDismissRequest = { showDatePicker = false },
-        backgroundColor = Color.Transparent,
-        modifier = Modifier.heightIn(max = 330.dp),
-        surfaceModifier = Modifier.quickSheetBackdropModifier(backdrop, config, blurRadius = 28.dp)
-    ) {
-        val maxDay = daysInMonth(dateYear, dateMonth)
-        LaunchedEffect(maxDay) {
-            if (dateDay > maxDay) dateDay = maxDay
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(bottom = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            top.yukonga.miuix.kmp.basic.NumberPicker(
-                value = dateYear,
-                onValueChange = { dateYear = it },
-                range = 2000..2100,
-                visibleItemCount = 3,
-                label = { "${it}年" },
-                modifier = Modifier.weight(1.25f)
-            )
-            top.yukonga.miuix.kmp.basic.NumberPicker(
-                value = dateMonth,
-                onValueChange = { dateMonth = it },
-                range = 1..12,
-                visibleItemCount = 3,
-                label = { "${it}月" },
-                modifier = Modifier.weight(1f)
-            )
-            top.yukonga.miuix.kmp.basic.NumberPicker(
-                value = dateDay.coerceAtMost(maxDay),
-                onValueChange = { dateDay = it },
-                range = 1..maxDay,
-                visibleItemCount = 3,
-                label = { "${it}日" },
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
 fun rememberSchedulePickerState(): SchedulePickerState = remember { SchedulePickerState() }
 
 fun AppState.forSchedule(scheduleId: Int): AppState {
@@ -580,7 +195,6 @@ fun SchedulePickerOverlay(
     onBack: (Int) -> Unit,
     onCreate: () -> Unit,
     onShare: (Int, ScheduleShareType) -> Unit,
-    onCustomize: (Int) -> Unit,
     onRename: (Int, String) -> Unit,
     onDeleteRequest: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -955,9 +569,11 @@ fun SchedulePickerOverlay(
                 }
                 BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
                     val compact = maxWidth < 360.dp
-                    val customizeWidth = if (compact) 160.dp else 176.dp
                     val buttonSize = if (compact) 48.dp else 52.dp
-                    val sideOffset = customizeWidth / 2 + if (compact) 52.dp else 58.dp
+                    // Two circles either side of the centre, so the offset is half a button plus
+                    // half the gap. The row used to bracket a wide text button in the middle.
+                    val iconGap = if (compact) 28.dp else 32.dp
+                    val sideOffset = buttonSize / 2 + iconGap / 2
                     PickerIconLiquidButton(
                         icon = R.drawable.ic_share_schedule,
                         description = "分享课表",
@@ -967,15 +583,6 @@ fun SchedulePickerOverlay(
                         tint = Color(0xFF34C759),
                         modifier = Modifier.align(Alignment.Center).offset(x = -sideOffset).size(buttonSize)
                     ) { showShareOptions = true }
-                    PickerTextButton(
-                        "自定义",
-                        pagerInputEnabled,
-                        managerBackdrop,
-                        visualConfig,
-                        modifier = Modifier.width(customizeWidth)
-                    ) {
-                        onCustomize(selectedId)
-                    }
                     PickerIconLiquidButton(
                         icon = R.drawable.ic_add_course,
                         description = "新建课表",
@@ -1159,29 +766,5 @@ private fun PickerIconLiquidButton(
         Box(modifier.clip(Capsule()).background(tint.copy(alpha = 0.5f)).clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
             Icon(painterResource(icon), description, tint = Color.White, modifier = Modifier.size(23.dp))
         }
-    }
-}
-
-@Composable
-private fun PickerTextButton(label: String, enabled: Boolean, backdrop: Backdrop?, config: ScheduleConfigEntity, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val latestEnabled by rememberUpdatedState(enabled)
-    val latestOnClick by rememberUpdatedState(onClick)
-    val buttonModifier = if (modifier == Modifier) Modifier.width(176.dp) else modifier
-    if (backdrop != null) {
-        LiquidButton(
-            onClick = { if (latestEnabled) latestOnClick() },
-            backdrop = backdrop,
-            modifier = buttonModifier,
-            height = 52.dp,
-            blurRadius = 10.dp,
-            lensHeight = 26.dp,
-            lensAmount = 34.dp,
-            chromaticAberration = false,
-            contentPadding = PaddingValues(horizontal = 16.dp)
-        ) {
-            Text(label, color = Color.White.copy(alpha = if (enabled) 1f else 0.42f), fontWeight = FontWeight.SemiBold)
-        }
-    } else {
-        Text(label, color = Color.White.copy(alpha = if (enabled) 1f else 0.42f), fontWeight = FontWeight.Medium, modifier = buttonModifier.clip(Capsule()).background(Color.White.copy(alpha = 0.12f)).clickable(enabled = enabled, onClick = onClick).padding(horizontal = 20.dp, vertical = 11.dp))
     }
 }
