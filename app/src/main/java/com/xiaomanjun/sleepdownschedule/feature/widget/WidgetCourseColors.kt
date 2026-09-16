@@ -70,7 +70,7 @@ internal object WidgetCourseColors {
             state.courses,
             resolvedPalette,
             tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT,
-            identityHues = courseCardUsesGeneratedHues(state.config)
+            exactPalette = courseCardUsesPersonalPalette(state.config)
         )
             .mapValues { (_, color) -> color.toInt() }
         synchronized(cache) { cache[key] = resolved }

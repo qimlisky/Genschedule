@@ -129,7 +129,7 @@ class CourseCardColorAssignmentTest {
         assertEquals(colors.distinct(), decodeCourseCardPalette(encodeCourseCardPalette(colors)))
     }
 
-    // ------------------------------------------------------------------ generated hues
+    // ------------------------------------------------------------ written-in palette (写死色表)
 
     /** Places courses on weekday/period pairs that are never adjacent, to isolate palette size. */
     private fun spacedCourses(count: Int) = (1..count).map { index ->
@@ -144,31 +144,68 @@ class CourseCardColorAssignmentTest {
         course(index.toLong(), "课程$index").copy(weekday = 1, periods = listOf(index))
     }
 
-    private fun generate(courses: List<CourseEntity>, flag: Boolean = true) =
-        buildCourseCardColorAssignments(courses, emptyList(), identityHues = flag)
+    /**
+     * Stands in for the hand-edited `PersonalCourseCardPalette`. Chosen to be clearly separated so
+     * this suite tests the placement algorithm rather than anyone's taste; the production list is a
+     * placeholder until the user fills it in, and the assertions below are written against this
+     * local copy so editing the real one can never break the build.
+     */
+    private val writtenInPalette = listOf(
+        0xFF64B5F6L, 0xFF4DD0E1L, 0xFF4DB6ACL, 0xFF81C784L,
+        0xFFAED581L, 0xFFFFD166L, 0xFFFFB74DL, 0xFFE57373L,
+        0xFFF48FB1L, 0xFFBA68C8L, 0xFF9575CDL, 0xFF7986CBL
+    )
 
+    private fun exact(courses: List<CourseEntity>) =
+        buildCourseCardColorAssignments(courses, writtenInPalette, exactPalette = true)
+
+    /**
+     * The point of the exercise: a card may only ever wear a colour that was written into the list.
+     * Nothing may be generated, muted, or rotated into a new hue.
+     */
     @Test
-    fun generatedHuesGrowWithTheNumberOfCourses() {
-        listOf(6, 12, 20).forEach { count ->
-            val assignments = generate(spacedCourses(count))
+    fun everyColorComesFromTheWrittenInPalette() {
+        val courses = (1L..20L).map { course(it, "课程$it") }
 
-            assertEquals(count, assignments.size)
-            assertEquals(
-                "every course needs its own colour",
-                count,
-                assignments.values.distinct().size
-            )
-            assertTrue(
-                "the palette must outgrow the ${DefaultCourseCardPalette.size} seed colours",
-                assignments.values.distinct().size > DefaultCourseCardPalette.size
-            )
-        }
+        val assignments = exact(courses)
+
+        assertEquals(courses.size, assignments.size)
+        assertTrue(
+            "a card took a colour that is not in the written-in list",
+            assignments.values.all { it in writtenInPalette }
+        )
+        // Twenty courses over twelve entries: reusing an entry is expected, inventing one is not.
+        assertTrue(
+            "more distinct colours came back than the list holds",
+            assignments.values.distinct().size <= writtenInPalette.size
+        )
+    }
+
+    /**
+     * "原样显示" — the written-in list must bypass the saturation/value clamp the generated path
+     * applies. A vivid seed is the sharpest probe: that clamp would coerce S<=0.70 and V<=0.95, so a
+     * clamped copy could not survive verbatim.
+     */
+    @Test
+    fun writtenInColorsAreUsedVerbatimWithoutTheMutingClamp() {
+        val vivid = 0xFF00E5FFL
+        val courses = listOf(course(1, "高等数学"), course(2, "大学英语"))
+
+        val writtenIn = buildCourseCardColorAssignments(courses, listOf(vivid), exactPalette = true)
+        assertEquals(setOf(vivid), writtenIn.values.toSet())
+
+        val generated = buildCourseCardColorAssignments(courses, listOf(vivid))
+        assertTrue(
+            "the generated path is expected to mute a vivid seed",
+            generated.values.none { it == vivid }
+        )
     }
 
     @Test
-    fun verticallyAdjacentCardsStayDistinguishable() {
+    fun stackedCardsTakeDifferentColoursFromTheWrittenInPalette() {
         val courses = stackedCourses(10)
-        val assignments = generate(courses)
+
+        val assignments = exact(courses)
 
         courses.zipWithNext { above, below ->
             assertTrue(
@@ -188,7 +225,8 @@ class CourseCardColorAssignmentTest {
             course(2, "并排课程乙").copy(weekday = 2, periods = listOf(2)),
             course(3, "并排课程丙").copy(weekday = 2, periods = listOf(3))
         )
-        val assignments = generate(courses)
+
+        val assignments = exact(courses)
 
         assertTrue(
             "cards touching across adjacent days need visible contrast",
@@ -207,15 +245,20 @@ class CourseCardColorAssignmentTest {
     }
 
     /**
-     * Adding a course must not recolour the schedule the user is already looking at. This is the
-     * property the placement order is designed around, and it holds unconditionally.
+     * Adding a course must not recolour the schedule the user is already looking at. A card weighs
+     * only its own name and the neighbours placed before it, so a course that lands nowhere near the
+     * existing ones cannot move any of them.
+     *
+     * The reverse does not hold and is not asserted: removing a course frees a neighbour from its
+     * collision, and under a fixed palette that neighbour can land on a different entry outright
+     * rather than settling back by a few degrees.
      */
     @Test
-    fun addingACourseNeverRecoloursTheExistingOnes() {
+    fun addingANonAdjacentCourseNeverRecoloursTheExistingOnes() {
         val existing = spacedCourses(12)
-        val before = generate(existing)
+        val before = exact(existing)
         val added = existing + course(99, "新增课程").copy(weekday = 5, periods = listOf(9))
-        val after = generate(added)
+        val after = exact(added)
 
         existing.forEach { existingCourse ->
             val key = courseCardColorKey(existingCourse)
@@ -227,56 +270,29 @@ class CourseCardColorAssignmentTest {
         }
     }
 
-    /**
-     * Removing a course can free a neighbour from a collision, so the walking back towards its own
-     * colour is allowed — but only by less than the distance at which two cards read as different.
-     * That bound is what keeps this scheme stable in practice; without it a neighbour would jump
-     * most of the way around the hue wheel and users would see the grid reshuffle.
-     */
     @Test
-    fun removingACourseNeverVisiblyRecoloursTheOthers() {
-        val courses = stackedCourses(12)
-        val before = generate(courses)
-
-        courses.forEachIndexed { index, removed ->
-            val after = generate(courses.filterIndexed { other, _ -> other != index })
-            before.forEach { (key, color) ->
-                val settled = after[key] ?: return@forEach
-                assertTrue(
-                    "removing ${removed.name} moved $key by more than the visibility threshold",
-                    courseCardAppearanceDistance(color, settled) < 0.20
-                )
-            }
-        }
-    }
-
-    @Test
-    fun generatedHuesIgnoreTheCourseOrder() {
+    fun writtenInPaletteAssignmentIgnoresTheCourseOrder() {
         val courses = spacedCourses(12) + stackedCourses(3)
 
         assertEquals(
-            generate(courses),
-            generate(courses.reversed())
+            exact(courses),
+            exact(courses.reversed())
         )
     }
 
     /**
-     * The generated palette is deliberately narrow: an explicit user palette always wins, the
-     * wallpaper path keeps its existing behaviour, and SOLID/GRADIENT keep their single-family
-     * semantics.
+     * The written-in palette is deliberately narrow: COLORFUL only, and only without a wallpaper.
+     * SOLID keeps its single/preset colour, GRADIENT keeps its one light-to-dark family, and the
+     * wallpaper path keeps sampling the wallpaper.
      */
     @Test
-    fun generatedHuesOnlyApplyToColorfulWithoutWallpaperOrCustomPalette() {
+    fun writtenInPaletteOnlyAppliesToColorfulWithoutAWallpaper() {
         val colorful = defaultConfig().copy(courseCardColorMode = CourseCardColorMode.COLORFUL)
-        assertTrue(courseCardUsesGeneratedHues(colorful))
+        assertTrue(courseCardUsesPersonalPalette(colorful))
 
         assertTrue(
-            "an explicit palette must always win",
-            !courseCardUsesGeneratedHues(colorful.copy(courseCardPalette = "FF112233"))
-        )
-        assertTrue(
-            "the wallpaper path keeps its existing colours",
-            !courseCardUsesGeneratedHues(
+            "the wallpaper path keeps sampling the wallpaper",
+            !courseCardUsesPersonalPalette(
                 colorful.copy(
                     wallpaperUri = "content://wallpaper/1",
                     defaultWallpaperStyle = DefaultWallpaperStyle.NONE
@@ -285,31 +301,41 @@ class CourseCardColorAssignmentTest {
         )
         assertTrue(
             "a default wallpaper style counts as a wallpaper",
-            !courseCardUsesGeneratedHues(
+            !courseCardUsesPersonalPalette(
                 colorful.copy(defaultWallpaperStyle = DefaultWallpaperStyle.KANBAN)
             )
         )
         assertTrue(
             "SOLID keeps its single or preset colour",
-            !courseCardUsesGeneratedHues(
+            !courseCardUsesPersonalPalette(
                 defaultConfig().copy(courseCardColorMode = CourseCardColorMode.SOLID)
             )
         )
         assertTrue(
             "GRADIENT keeps its one light-to-dark family",
-            !courseCardUsesGeneratedHues(
+            !courseCardUsesPersonalPalette(
                 defaultConfig().copy(courseCardColorMode = CourseCardColorMode.GRADIENT)
             )
         )
+        assertTrue(
+            "a palette saved earlier from the colour picker must not take the written-in colours out of play",
+            courseCardUsesPersonalPalette(colorful.copy(courseCardPalette = "FF112233"))
+        )
     }
 
+    /**
+     * The resolved palette is what every consumer reads — home, course management, the manager
+     * preview and the home-screen widget — so pinning it here is what keeps App and widget agreeing.
+     */
     @Test
-    fun generatedHuesStayInTheMutedBand() {
-        (1..60).forEach { index ->
-            val hsv = courseCardHsv(courseCardIdentityColor("课程$index"))
-            assertTrue("saturation ${hsv.saturation} drifted out of family", hsv.saturation in 0.40f..0.68f)
-            assertTrue("value ${hsv.value} drifted out of family", hsv.value in 0.82f..0.96f)
-        }
-    }
+    fun colorfulWithoutAWallpaperResolvesToTheWrittenInPalette() {
+        val colorful = defaultConfig().copy(courseCardColorMode = CourseCardColorMode.COLORFUL)
 
+        assertEquals(PersonalCourseCardPalette, resolvedCourseCardPalette(colorful, emptyList()))
+        assertEquals(
+            "a palette saved earlier must not win over the written-in one",
+            PersonalCourseCardPalette,
+            resolvedCourseCardPalette(colorful.copy(courseCardPalette = "FF112233"), emptyList())
+        )
+    }
 }

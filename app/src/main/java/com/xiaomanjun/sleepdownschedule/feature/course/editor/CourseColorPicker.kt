@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
@@ -164,15 +165,21 @@ internal fun CourseColorPaletteButton(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: androidx.compose.ui.unit.Dp = 34.dp
+    size: androidx.compose.ui.unit.Dp = 34.dp,
+    enabled: Boolean = true
 ) {
     val surfaceColor = if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.90f)
     val iconColor = if (selected) Color.White else Color(0xFF1A1A1A)
+    // A disabled swatch button still sits in the row rather than disappearing, so the row keeps its
+    // rhythm and the control stays discoverable once the wallpaper puts it back in play.
+    val target = modifier.size(size).alpha(if (enabled) 1f else 0.38f)
+    val onTap = if (enabled) onClick else ({})
     if (backdrop != null) {
         LiquidButton(
-            onClick = onClick,
+            onClick = onTap,
             backdrop = backdrop,
-            modifier = modifier.size(size),
+            modifier = target,
+            isInteractive = enabled,
             height = size,
             contentPadding = PaddingValues(0.dp),
             surfaceColor = surfaceColor,
@@ -192,10 +199,11 @@ internal fun CourseColorPaletteButton(
         }
     } else {
         Surface(
-            modifier = modifier.size(size),
+            modifier = target,
             shape = Capsule(),
             color = surfaceColor,
-            onClick = onClick
+            onClick = onTap,
+            enabled = enabled
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
