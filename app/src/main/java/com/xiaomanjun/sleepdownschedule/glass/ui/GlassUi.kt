@@ -1477,8 +1477,8 @@ fun CourseGlassCard(
                                     layoutDirection = layoutDirection,
                                     density = this
                                 ),
-                                //卡片颜色
-                                color = Color(0xFF5B5B5B),
+                                //卡片边缘边线颜色
+                                color = Color(0xE8FFFFFF),
                                 alpha = cardOutlineAlpha,
                                 style = Stroke(width = strokeWidth)
                             )
