@@ -1430,10 +1430,13 @@ fun CourseScheduleAppUi(
     val homeReturnTargetWeek = if (beforeScheduleTerm) 1 else homeCurrentWeek
     val homeShowingAnotherWeek = homeMode == HomeMode.Week && homeDisplayWeek != homeReturnTargetWeek
     val homeCourseColorSignature = remember(visualState.config.id, visualState.courses) {
+        // Ordered by creation, which is the order the palette is handed out in: a course deleted and
+        // re-added under the same name takes a new id, and the colours move with it. Card movement
+        // and resizing only change weekday/periods, so they still leave this key alone.
         visualState.courses
+            .sortedBy { it.id }
             .map(::courseCardColorKey)
             .distinct()
-            .sorted()
     }
     val homeCoursePalette = remember(
         visualState.config.courseCardColorMode,

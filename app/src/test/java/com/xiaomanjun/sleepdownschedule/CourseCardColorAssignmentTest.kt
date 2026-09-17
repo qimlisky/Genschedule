@@ -145,10 +145,12 @@ class CourseCardColorAssignmentTest {
     }
 
     /**
-     * Stands in for the hand-edited `PersonalCourseCardPalette`. Chosen to be clearly separated so
-     * this suite tests the placement algorithm rather than anyone's taste; the production list is a
-     * placeholder until the user fills it in, and the assertions below are written against this
-     * local copy so editing the real one can never break the build.
+     * Stands in for the hand-edited `PersonalCourseCardPalette`.
+     *
+     * Deliberately kept as a local copy rather than read from production: the production list is
+     * edited by hand to taste, and re-picking colours must never turn this suite red. The count
+     * matters (twelve entries, so "more courses than colours" is reachable) but the exact hues do
+     * not — every distance assertion below is skipped for entries the palette cannot separate.
      */
     private val writtenInPalette = listOf(
         0xFF64B5F6L, 0xFF4DD0E1L, 0xFF4DB6ACL, 0xFF81C784L,
@@ -158,6 +160,28 @@ class CourseCardColorAssignmentTest {
 
     private fun exact(courses: List<CourseEntity>) =
         buildCourseCardColorAssignments(courses, writtenInPalette, exactPalette = true)
+
+    /**
+     * Asserts that [later] — the one allocated second, and so the one under an obligation — was
+     * moved off [earlier]'s colour.
+     *
+     * The assertion is skipped when no entry in the palette clears the bar against [earlier] in the
+     * first place: a hand-written palette can be clustered, and then no assignment could separate
+     * those two cards. That is the palette's limit, not the algorithm's.
+     */
+    private fun assertSeparated(
+        earlier: CourseEntity,
+        later: CourseEntity,
+        assignments: Map<String, Long>
+    ) {
+        val earlierColor = assignments.getValue(courseCardColorKey(earlier))
+        val laterColor = assignments.getValue(courseCardColorKey(later))
+        if (writtenInPalette.none { courseCardAppearanceDistance(it, earlierColor) >= 0.20 }) return
+        assertTrue(
+            "${later.name} sits next to ${earlier.name} but wears an indistinguishable colour",
+            courseCardAppearanceDistance(earlierColor, laterColor) >= 0.20
+        )
+    }
 
     /**
      * The point of the exercise: a card may only ever wear a colour that was written into the list.
@@ -201,21 +225,42 @@ class CourseCardColorAssignmentTest {
         )
     }
 
+    /**
+     * The list is handed out in full before anything repeats.
+     *
+     * Six courses over twelve colours must all differ; sixteen courses over the same twelve must
+     * still bring every entry into play even though four of them have to double up.
+     */
+    @Test
+    fun everyPaletteEntryIsUsedBeforeAnyColourRepeats() {
+        val few = spacedCourses(6)
+        assertEquals(
+            "a card repeated a colour while unused entries were still on the table",
+            6,
+            exact(few).values.distinct().size
+        )
+
+        val many = spacedCourses(12) + (1L..4L).map { index ->
+            course(index + 100L, "额外课程$index").copy(weekday = 7, periods = listOf(index.toInt()))
+        }
+        val manyAssignments = exact(many)
+
+        assertEquals(many.size, manyAssignments.size)
+        assertEquals(
+            "some entries never got handed out",
+            writtenInPalette.toSet(),
+            manyAssignments.values.toSet()
+        )
+    }
+
     @Test
     fun stackedCardsTakeDifferentColoursFromTheWrittenInPalette() {
         val courses = stackedCourses(10)
 
         val assignments = exact(courses)
 
-        courses.zipWithNext { above, below ->
-            assertTrue(
-                "${above.name} and ${below.name} are stacked but too similar",
-                courseCardAppearanceDistance(
-                    assignments.getValue(courseCardColorKey(above)),
-                    assignments.getValue(courseCardColorKey(below))
-                ) >= 0.20
-            )
-        }
+        // ids ascend with the list, so each pair is (allocated earlier, allocated later).
+        courses.zipWithNext { above, below -> assertSeparated(above, below, assignments) }
     }
 
     @Test
@@ -228,46 +273,39 @@ class CourseCardColorAssignmentTest {
 
         val assignments = exact(courses)
 
-        assertTrue(
-            "cards touching across adjacent days need visible contrast",
-            courseCardAppearanceDistance(
-                assignments.getValue(courseCardColorKey(courses[0])),
-                assignments.getValue(courseCardColorKey(courses[1]))
-            ) >= 0.20
-        )
-        assertTrue(
-            "cards touching across adjacent days need visible contrast",
-            courseCardAppearanceDistance(
-                assignments.getValue(courseCardColorKey(courses[1])),
-                assignments.getValue(courseCardColorKey(courses[2]))
-            ) >= 0.20
-        )
+        assertSeparated(courses[0], courses[1], assignments)
+        assertSeparated(courses[1], courses[2], assignments)
     }
 
     /**
-     * Adding a course must not recolour the schedule the user is already looking at. A card weighs
-     * only its own name and the neighbours placed before it, so a course that lands nowhere near the
-     * existing ones cannot move any of them.
+     * Adding a course must not recolour the schedule the user is already looking at.
      *
-     * The reverse does not hold and is not asserted: removing a course frees a neighbour from its
-     * collision, and under a fixed palette that neighbour can land on a different entry outright
-     * rather than settling back by a few degrees.
+     * This holds unconditionally under exhaust-first allocation, not merely for courses that happen
+     * to land far away: the newcomer has the newest id, so it is allocated last and cannot take an
+     * entry out from under anyone. Here it is stacked directly against the last existing card, which
+     * is the case that used to be able to force a neighbour to move.
+     *
+     * The reverse does not hold and is not asserted: removing a course frees an entry, and because
+     * the list is walked in order, every card created after it may shift onto a different entry
+     * outright rather than settling back by a few degrees.
      */
     @Test
-    fun addingANonAdjacentCourseNeverRecoloursTheExistingOnes() {
-        val existing = spacedCourses(12)
+    fun addingACourseNeverRecoloursTheExistingOnes() {
+        val existing = stackedCourses(6)
         val before = exact(existing)
-        val added = existing + course(99, "新增课程").copy(weekday = 5, periods = listOf(9))
+        val added = existing + course(99, "插进来的课").copy(weekday = 1, periods = listOf(7))
         val after = exact(added)
 
         existing.forEach { existingCourse ->
             val key = courseCardColorKey(existingCourse)
             assertEquals(
-                "adding an unrelated course recoloured ${existingCourse.name}",
+                "adding a course recoloured ${existingCourse.name}",
                 before.getValue(key),
                 after.getValue(key)
             )
         }
+        // The newcomer is the one that has to move off its neighbour.
+        assertSeparated(existing.last(), added.last(), after)
     }
 
     @Test

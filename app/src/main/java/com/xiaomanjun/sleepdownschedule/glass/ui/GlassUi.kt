@@ -87,11 +87,15 @@ val DefaultCourseCardPalette = listOf(
  * 写死的「彩色」课程卡片色表 —— **你要改的就是这里**。
  *
  * 改这个 list 就是改彩色模式下卡片的背景色：`0xAARRGGBB` 的 16 进制 Long，一行一个。
- * 下面这 12 行只是占位，请替换成你自己喜欢的颜色；加减行数都可以。
+ * 加减行数都可以，改完直接重新编译即可，不需要动别的代码。
  *
  * 行为约定：
  * - 色值**原样上屏**，不做饱和度/明度柔化，也不会因为撞色被挪色相；
- * - 颜色按课程名稳定分配——新增课程不会改变已有课程的颜色（只有和新增课程直接相邻的那张卡可能换色）；
+ * - **先把色表用满，再开始重复**：按课程创建顺序发放，色表里每个颜色都会被用到之后，
+ *   才会出现第二个课程用同一个颜色；
+ * - 发放时优先保证**同一天上下相邻的卡不同色**（颜色不够时这一点会让位给上面两条）；
+ * - **新增课程不会改变已有课程的颜色**——新课程排在最后，只能拿还没被用过的颜色；
+ *   删掉课程则会释放它的颜色，创建时间比它晚的卡片可能换色；
  * - **填几个就是几个**：色表长度由这个 list 本身决定，代码里任何地方都不写死个数，也不受
  *   [encodeCourseCardPalette] 的 8 个上限约束（那个上限只作用于存进数据库的 courseCardPalette 字符串）；
  * - 重复的色值会被去重（等价于少写一个）；
@@ -280,67 +284,43 @@ internal fun courseCardPerceptualDistance(first: Long, second: Long): Double {
 /** Appearance distance two vertically adjacent cards must keep; matches the existing test bar. */
 private const val AdjacentCardCollisionDistance = 0.20
 
-private const val PlacementSalt = 0x7081
-
-/**
- * FNV-1a plus a lowbias32 avalanche, salted so different uses stay independent.
- *
- * `String.hashCode()` alone is unusable: consecutive course names such as "课程1" and "课程2" differ
- * only in their low bits, so they would start their palette scan at the same entry and alternate
- * between two colours.
- */
-private fun courseCardMixedHash(value: String, salt: Int): Int {
-    var hash = 0x811C9DC5.toInt() xor salt
-    value.forEach { character ->
-        hash = (hash xor character.code) * 0x01000193
-    }
-    hash = hash xor (hash ushr 16)
-    hash *= 0x7FEB352D
-    hash = hash xor (hash ushr 15)
-    hash *= 0x846CA68B.toInt()
-    hash = hash xor (hash ushr 16)
-    return hash
-}
-
 /**
  * Hands out colours from a fixed written-in palette, using only the palette's own entries.
  *
- * Two properties drive the design:
+ * Allocation walks the courses in **creation order** and prefers an entry that has not been handed
+ * out yet, so the palette is used up in full before any colour repeats. Only once every entry is in
+ * play does a card accept a repeat, and even then it still refuses to sit next to a card wearing a
+ * colour it cannot be told apart from.
  *
- * - **Nothing outside [bases] is ever produced.** The written-in palette is the whole colour space,
- *   so no candidate is generated and no saturation/value clamp is applied.
- * - **A card only ever looks at the neighbours already placed.** A card's colour therefore depends
- *   on its own name and on the courses it actually sits next to, never on the schedule as a whole:
- *   adding a course cannot recolour anything that is not directly adjacent to it. The exception is
- *   the reverse direction — a card that gains a colliding neighbour, and a *removal* that frees a
- *   neighbour, both shift a colour, and under a fixed palette a freed card can land on a completely
- *   different entry rather than settling back by a few degrees. That reshuffle is the accepted cost
- *   of "one written-in palette, distributed automatically"; the per-course identity colour scheme it
- *   replaces could bound the shift only because it generated each colour from the name.
+ * Creation order is what makes that safe to do. A newly added course has the newest id, so it is
+ * always allocated last and can never take an entry out from under a card that is already on screen:
+ * **adding a course never recolours anything**, unconditionally, not merely for courses that happen
+ * to be far apart.
  *
- * Each card starts its scan at a name-derived offset so the palette spreads across the schedule
- * instead of being handed out in list order.
+ * Removing a course is the exception. It frees an entry, and because the palette is walked in order,
+ * every card created after it may shift onto a different entry outright rather than settling back by
+ * a few degrees. That reshuffle is the accepted cost of "one written-in palette, distributed
+ * automatically"; the per-course identity colour scheme this replaces could bound the shift only
+ * because it derived each colour from the name alone.
  */
 private fun buildExactPaletteAssignments(
     keys: List<String>,
     adjacentKeys: Map<String, Set<String>>,
+    orderKeys: List<String>,
     bases: List<Long>
 ): Map<String, Long> {
+    val remaining = bases.toMutableList()
     val assigned = HashMap<String, Long>(keys.size)
-    keys.forEach { key ->
+    orderKeys.forEach { key ->
         val placedNeighbours = adjacentKeys[key].orEmpty().mapNotNull(assigned::get)
-        val start = (courseCardMixedHash(key, PlacementSalt) and Int.MAX_VALUE) % bases.size
-        var color = bases[start]
-        for (offset in bases.indices) {
-            val candidate = bases[(start + offset) % bases.size]
-            if (placedNeighbours.none {
-                    courseCardAppearanceDistance(it, candidate) < AdjacentCardCollisionDistance
-                }
-            ) {
-                color = candidate
-                break
-            }
+        fun distinguishable(candidate: Long) = placedNeighbours.none {
+            courseCardAppearanceDistance(it, candidate) < AdjacentCardCollisionDistance
         }
+        // 先发没出现过的颜色，色表用满之后才开始复用；两者都优先保证相邻不同色。
+        val color = remaining.firstOrNull { distinguishable(it) }
+            ?: bases.firstOrNull { distinguishable(it) }
+            ?: bases.first()
+        remaining.remove(color)
         assigned[key] = color
     }
     return keys.associateWith { assigned.getValue(it) }
@@ -379,7 +359,14 @@ fun buildCourseCardColorAssignments(
         val writtenIn = representativeColors.ifEmpty { PersonalCourseCardPalette }
             .distinct()
             .ifEmpty { DefaultCourseCardPalette }
-        return buildExactPaletteAssignments(keys, adjacentKeys, writtenIn)
+        // 按课程创建顺序发放（同名的课程取最早的那个 id），这样新加的课程永远排在最后，
+        // 不会抢走已经在屏幕上的课程的颜色。
+        val orderKeys = keys.sortedWith(
+            compareBy<String> {
+                coursesByKey[it].orEmpty().minOfOrNull { course -> course.id } ?: Long.MAX_VALUE
+            }.thenBy { it }
+        )
+        return buildExactPaletteAssignments(keys, adjacentKeys, orderKeys, writtenIn)
     }
     val bases = representativeColors.ifEmpty { DefaultCourseCardPalette }
         .map { color ->
