@@ -219,7 +219,7 @@ internal fun android.view.Window.applyAppThemeSurface(darkTheme: Boolean) {
     val backgroundColor = if (darkTheme) {
         android.graphics.Color.BLACK
     } else {
-        android.graphics.Color.rgb(0xED, 0xEE, 0xF3)
+        android.graphics.Color.rgb(0xCD, 0xD7, 0xE9)
     }
     setBackgroundDrawable(android.graphics.drawable.ColorDrawable(backgroundColor))
     decorView.setBackgroundColor(backgroundColor)

@@ -1084,10 +1084,11 @@ fun HomeBackdropFallback(noWallpaper: Boolean = true) {
     Canvas(Modifier.fillMaxSize()) {
         if (noWallpaper) {
             // 无壁纸时背景带一点点灰，深浅色模式都调
-            drawRect(if (dark) ComposeColor(0xFF18181C) else ComposeColor(0xFFF1F1F3))
+            drawRect(if (dark) ComposeColor(0xFF18181C) else ComposeColor(0xFFcdd7e9))
             return@Canvas
         }
         drawRect(colors.background)
+
         drawRect(
             brush = Brush.verticalGradient(
                 colorStops = arrayOf(
