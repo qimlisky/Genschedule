@@ -3431,12 +3431,14 @@ fun WeekCourseBlock(
             val courseFontScale = ((previewFontScale ?: config.courseCardFontScale) * tabletFontBoost)
                 .coerceIn(0.80f, 1.35f)
             fun scaledCourseWeekText(value: TextUnit): TextUnit = scaledWeekText((value.value * courseFontScale).sp, fontScaleCompensation)
-            val nameFont = scaledCourseWeekText(if (tiny) 8.8.sp else if (compact) 9.7.sp else 10.7.sp)
-            val nameLineHeight = scaledCourseWeekText(if (tiny) 8.2.sp else if (compact) 9.1.sp else 10.0.sp)
-            val locationFont = scaledCourseWeekText(if (tiny) 8.1.sp else if (compact) 8.7.sp else 9.5.sp)
-            val locationLineHeight = scaledCourseWeekText(if (tiny) 8.0.sp else if (compact) 8.6.sp else 9.3.sp)
+
+            val nameFont = scaledCourseWeekText(if (tiny) 9.sp else if (compact) 10.sp else 12.sp)
+            val nameLineHeight = scaledCourseWeekText(if (tiny) 8.2.sp else if (compact) 9.1.sp else 12.sp)
+            val locationFont = scaledCourseWeekText(if (tiny) 9.sp else if (compact) 10.sp else 12.sp)
+            val locationLineHeight = scaledCourseWeekText(if (tiny) 8.0.sp else if (compact) 8.8.sp else 12.sp)
             val teacherFont = scaledCourseWeekText(8.4.sp)
             val teacherLineHeight = scaledCourseWeekText(7.9.sp)
+
             val contentWidthPx = with(density) { (cardLayoutWidth - horizontalPadding * 2f).coerceAtLeast(24.dp).toPx() }
             val availableTextPx = with(density) { (displayedHeight - verticalPadding * 2f).coerceAtLeast(0.dp).toPx() }
 
@@ -3535,8 +3537,8 @@ fun WeekCourseBlock(
                             modifier = Modifier.fillMaxWidth(),
                             fontSize = locationFont,
                             lineHeight = locationLineHeight,
-                            fontWeight = FontWeight.Medium,
-                            color = courseTextColor.copy(alpha = 0.78f),
+                            fontWeight = FontWeight.SemiBold,
+                            color = courseTextColor.copy(alpha = 0.90f),
                             maxLines = locationLines,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
