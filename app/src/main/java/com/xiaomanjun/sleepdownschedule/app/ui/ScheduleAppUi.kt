@@ -1013,6 +1013,7 @@ fun CourseScheduleAppUi(
                 GlassSamplingLink("home-cached-week", "home-personalization")
             )
         )
+        true
     }
     var homeReadabilityRootSize by remember { mutableStateOf(IntSize.Zero) }
     var homeRootPositionOnScreen by remember { mutableStateOf(Offset.Zero) }
@@ -7494,11 +7495,11 @@ private fun SliderWithSnapMarker(
     content: @Composable () -> Unit
 ) {
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    Box(modifier = modifier.fillMaxWidth()) {
         content()
-        val snap = snapValue ?: return@BoxWithConstraints
+        val snap = snapValue ?: return@Box
         val fraction = ((snap - valueRange.start) /
-            (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+                (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
         Canvas(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -7508,7 +7509,7 @@ private fun SliderWithSnapMarker(
             val radius = 2.5.dp.toPx()
             val visualFraction = if (isLtr) fraction else 1f - fraction
             val centerX = radius +
-                (size.width - radius * 2f).coerceAtLeast(0f) * visualFraction
+                    (size.width - radius * 2f).coerceAtLeast(0f) * visualFraction
             drawCircle(
                 color = ComposeColor.White.copy(alpha = 0.78f),
                 radius = radius,
@@ -9310,10 +9311,9 @@ private fun Context.openSleepDownCustomTab(
             .setInitialActivityWidthPx(initialWidthPx)
             .setActivitySideSheetBreakpointDp(600)
             .setActivitySideSheetPosition(CustomTabsIntent.ACTIVITY_SIDE_SHEET_POSITION_END)
-            .setActivitySideSheetDecorationType(CustomTabsIntent.ACTIVITY_SIDE_SHEET_DECORATION_TYPE_DIVIDER)
+            // 删除 setActivitySideSheetDecorationType，使用默认
             .setActivitySideSheetRoundedCornersPosition(CustomTabsIntent.ACTIVITY_SIDE_SHEET_ROUNDED_CORNERS_POSITION_TOP)
             .setActivitySideSheetMaximizationEnabled(false)
-            // AndroidX Browser accepts toolbar radii in the inclusive 0..16 dp range.
             .setToolbarCornerRadiusDp(16)
             .setCloseButtonPosition(CustomTabsIntent.CLOSE_BUTTON_POSITION_START)
             .setBackgroundInteractionEnabled(false)
