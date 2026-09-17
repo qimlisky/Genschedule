@@ -10,6 +10,7 @@ import com.xiaomanjun.sleepdownschedule.feature.home.day.*
 import com.xiaomanjun.sleepdownschedule.core.performance.LocalGlassQuality
 
 import android.os.Build
+import android.view.animation.AlphaAnimation
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -1445,7 +1446,7 @@ fun CourseGlassCard(
                                 ),
                                 //卡片边缘边线颜色
                                 color = Color(0xE8FFFFFF),
-                                alpha = cardOutlineAlpha,
+                                alpha = 0.6f,
                                 style = Stroke(width = strokeWidth)
                             )
                         }

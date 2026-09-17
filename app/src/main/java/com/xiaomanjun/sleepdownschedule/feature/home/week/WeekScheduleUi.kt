@@ -3432,9 +3432,9 @@ fun WeekCourseBlock(
                 .coerceIn(0.80f, 1.35f)
             fun scaledCourseWeekText(value: TextUnit): TextUnit = scaledWeekText((value.value * courseFontScale).sp, fontScaleCompensation)
 
-            val nameFont = scaledCourseWeekText(if (tiny) 9.sp else if (compact) 10.sp else 12.sp)
+            val nameFont = scaledCourseWeekText(if (tiny) 9.sp else if (compact) 10.sp else 12.5.sp)
             val nameLineHeight = scaledCourseWeekText(if (tiny) 8.2.sp else if (compact) 9.1.sp else 12.sp)
-            val locationFont = scaledCourseWeekText(if (tiny) 9.sp else if (compact) 10.sp else 12.sp)
+            val locationFont = scaledCourseWeekText(if (tiny) 9.sp else if (compact) 10.sp else 12.5.sp)
             val locationLineHeight = scaledCourseWeekText(if (tiny) 8.0.sp else if (compact) 8.8.sp else 12.sp)
             val teacherFont = scaledCourseWeekText(8.4.sp)
             val teacherLineHeight = scaledCourseWeekText(7.9.sp)
@@ -3516,7 +3516,7 @@ fun WeekCourseBlock(
                     modifier = Modifier
                         .fillMaxSize()
                         //.padding(horizontal = horizontalPadding, vertical = verticalPadding)
-                        .padding(top = 4.dp, start = 0.5f.dp, end = 0.5f.dp),
+                        .padding(top = 4.dp, start = 1.dp, end = 1.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Top
                 ) {
@@ -3541,7 +3541,7 @@ fun WeekCourseBlock(
                             color = courseTextColor.copy(alpha = 0.90f),
                             maxLines = locationLines,
                             overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Start
                         )
                     }
                     if (canShowTeacher) {
