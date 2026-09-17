@@ -103,14 +103,18 @@ val DefaultCourseCardPalette = listOf(
  * - **只作用于「彩色 + 无壁纸」**：设了壁纸时仍走壁纸取色，纯色/渐变不受影响。
  */
 val PersonalCourseCardPalette = listOf(
-    0xFFC1A9F4L, //
-    //0xFF6D9DCFL,  //
-    0xFF7FABF5L,    //
-    0xFFE98C75L,    //
-    0xFF67CBCCL,    //
-    0xFFBEA9F8L,    //浅紫色
-    0xFFA5C882L,    //浅绿色
-    0xFF86ADFAL,    //浅蓝色
+    0xFF49A078L,//深绿色
+    0xFF7E8287L,//灰色
+    0xFFFBB7C0L,//浅粉色
+    0xFFD17D66L,//陶土色
+    0xFFC1A9F4L,//浅紫色
+    0xFFE6B475L,//杏色
+    0xFFED7C98L,//粉红色
+    0xFFE98C75L,//珊瑚橘
+    0xFF67CBCCL,//青绿色
+//0xFFBEA9F8L,//浅紫色
+    0xFFA5C882L,//浅绿色
+    0xFF86ADFAL,//浅蓝色
 )
 
 val LocalCourseCardPalette = compositionLocalOf { DefaultCourseCardPalette }
