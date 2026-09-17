@@ -155,7 +155,8 @@ internal fun CourseManagementColorProvider(
     val adaptiveGlass = rememberFallbackAdaptiveGlassState(state.config)
     val wallpaperImages by rememberHomeWallpaperImages(state.config)
     val colorSignature = remember(state.config.id, state.courses) {
-        state.courses.map(::courseCardColorKey).distinct().sorted()
+        // Creation order, matching the order the palette is handed out in — see ScheduleAppUi.
+        state.courses.sortedBy { it.id }.map(::courseCardColorKey).distinct()
     }
     val coursePalette = remember(
         state.config.courseCardColorMode,
@@ -167,13 +168,13 @@ internal fun CourseManagementColorProvider(
     }
     // Part of the key because it can flip on the wallpaper state alone, without the mode or the
     // resolved palette changing.
-    val usesGeneratedHues = courseCardUsesGeneratedHues(state.config)
+    val usesPersonalPalette = courseCardUsesPersonalPalette(state.config)
     val assignments = remember(
         state.config.id,
         state.config.courseCardColorMode,
         state.config.cardColorArgb,
         state.config.courseCardPalette,
-        usesGeneratedHues,
+        usesPersonalPalette,
         colorSignature,
         coursePalette
     ) {
@@ -181,19 +182,14 @@ internal fun CourseManagementColorProvider(
             state.courses,
             coursePalette,
             tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT,
-            identityHues = usesGeneratedHues
+            exactPalette = usesPersonalPalette
         )
     }
-    // The management screen must show the same colours as the home week view, and its per-course
-    // swatch row must offer the colours the cards actually use.
-    val pickerPalette = remember(usesGeneratedHues, assignments) {
-        if (usesGeneratedHues) assignments.values.distinct() else null
-    }
+    // The management screen must show the same colours as the home week view.
     CompositionLocalProvider(
         LocalAdaptiveGlass provides adaptiveGlass,
         LocalCourseCardPalette provides coursePalette,
         LocalCourseCardColorAssignments provides assignments,
-        LocalCourseCardPickerPalette provides pickerPalette,
         content = content
     )
 }

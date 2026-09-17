@@ -1431,10 +1431,13 @@ fun CourseScheduleAppUi(
     val homeReturnTargetWeek = if (beforeScheduleTerm) 1 else homeCurrentWeek
     val homeShowingAnotherWeek = homeMode == HomeMode.Week && homeDisplayWeek != homeReturnTargetWeek
     val homeCourseColorSignature = remember(visualState.config.id, visualState.courses) {
+        // Ordered by creation, which is the order the palette is handed out in: a course deleted and
+        // re-added under the same name takes a new id, and the colours move with it. Card movement
+        // and resizing only change weekday/periods, so they still leave this key alone.
         visualState.courses
+            .sortedBy { it.id }
             .map(::courseCardColorKey)
             .distinct()
-            .sorted()
     }
     val homeCoursePalette = remember(
         visualState.config.courseCardColorMode,
@@ -1444,15 +1447,15 @@ fun CourseScheduleAppUi(
     ) {
         resolvedCourseCardPalette(visualState.config, wallpaperImages.representativeColors)
     }
-    // One hue per course name, so the palette grows with the schedule. Read once per config
-    // change; it also has to be a remember key because it can flip on the wallpaper alone.
-    val homeCourseUsesGeneratedHues = courseCardUsesGeneratedHues(visualState.config)
+    // Part of the remember key because it can flip on the wallpaper state alone, without the mode
+    // or the resolved palette changing.
+    val homeCourseUsesPersonalPalette = courseCardUsesPersonalPalette(visualState.config)
     val homeCourseColorAssignments = remember(
         visualState.config.id,
         visualState.config.courseCardColorMode,
         visualState.config.cardColorArgb,
         visualState.config.courseCardPalette,
-        homeCourseUsesGeneratedHues,
+        homeCourseUsesPersonalPalette,
         homeCourseColorSignature,
         homeCoursePalette
     ) {
@@ -1462,13 +1465,8 @@ fun CourseScheduleAppUi(
             visualState.courses,
             homeCoursePalette,
             tonalFamily = visualState.config.courseCardColorMode == CourseCardColorMode.GRADIENT,
-            identityHues = homeCourseUsesGeneratedHues
+            exactPalette = homeCourseUsesPersonalPalette
         )
-    }
-    // Per-course swatches must show the colours the cards actually use. Assigned colours are a
-    // read-only sink for the pickers and are never fed back into the assignment above.
-    val homeCoursePickerPalette = remember(homeCourseUsesGeneratedHues, homeCourseColorAssignments) {
-        if (homeCourseUsesGeneratedHues) homeCourseColorAssignments.values.distinct() else null
     }
     val homeCaptureFrameKey = remember(
         captureRenderToken,
@@ -2212,7 +2210,6 @@ fun CourseScheduleAppUi(
         LocalHomeReadability provides homeReadabilityContext,
         LocalCourseCardPalette provides homeCoursePalette,
         LocalCourseCardColorAssignments provides homeCourseColorAssignments,
-        LocalCourseCardPickerPalette provides homeCoursePickerPalette,
         LocalGlassSceneState provides glassSceneState,
         LocalCourseGlassRestoreRegistry provides courseGlassRestoreRegistry,
         LocalCourseGlassMaterialRevealProgress provides courseGlassMaterialRevealProgressProvider,
@@ -5621,7 +5618,10 @@ private fun CourseColorModeRow(
     backdrop: Backdrop?,
     modifier: Modifier = Modifier,
     onPresetSelected: (List<Long>) -> Unit,
-    onOpenPalette: () -> Unit
+    onOpenPalette: () -> Unit,
+    // COLORFUL without a wallpaper takes its colours from PersonalCourseCardPalette, so the palette
+    // dialog cannot influence the cards there and the entry is greyed instead of lying.
+    paletteEnabled: Boolean = true
 ) {
     val foreground = LocalContentColor.current
     val labelColor = if (selectedMode == mode) MaterialTheme.colorScheme.primary else foreground
@@ -5729,7 +5729,8 @@ private fun CourseColorModeRow(
                                 backdrop = backdrop,
                                 selected = customSelected,
                                 onClick = onOpenPalette,
-                                size = 32.dp
+                                size = 32.dp,
+                                enabled = paletteEnabled
                             )
                         }
                     }
@@ -6488,7 +6489,8 @@ fun PersonalizePanel(
                             )
                         )
                     },
-                    onOpenPalette = { openCourseColorDialog(CourseCardColorMode.COLORFUL) }
+                    onOpenPalette = { openCourseColorDialog(CourseCardColorMode.COLORFUL) },
+                    paletteEnabled = !state.config.hasAnyWallpaper()
                 )
                 val glassLocked = !state.config.hasAnyWallpaper()
                 val alphaLabel = when {

@@ -83,24 +83,52 @@ val DefaultCourseCardPalette = listOf(
     0xFF4DD0E1L
 )
 
+/**
+ * 写死的「彩色」课程卡片色表 —— **你要改的就是这里**。
+ *
+ * 改这个 list 就是改彩色模式下卡片的背景色：`0xAARRGGBB` 的 16 进制 Long，一行一个。
+ * 加减行数都可以，改完直接重新编译即可，不需要动别的代码。
+ *
+ * 行为约定：
+ * - 色值**原样上屏**，不做饱和度/明度柔化，也不会因为撞色被挪色相；
+ * - **先把色表用满，再开始重复**：按课程创建顺序发放，色表里每个颜色都会被用到之后，
+ *   才会出现第二个课程用同一个颜色；
+ * - 发放时优先保证**同一天上下相邻的卡不同色**（颜色不够时这一点会让位给上面两条）；
+ * - **新增课程不会改变已有课程的颜色**——新课程排在最后，只能拿还没被用过的颜色；
+ *   删掉课程则会释放它的颜色，创建时间比它晚的卡片可能换色；
+ * - **填几个就是几个**：色表长度由这个 list 本身决定，代码里任何地方都不写死个数，也不受
+ *   [encodeCourseCardPalette] 的 8 个上限约束（那个上限只作用于存进数据库的 courseCardPalette 字符串）；
+ * - 重复的色值会被去重（等价于少写一个）；
+ * - 色表个数少于「同一天上下相邻的卡数」时，必然有相邻卡同色（抽屉原理，不是 bug）。建议 ≥ 你单日最多课程数；
+ * - **只作用于「彩色 + 无壁纸」**：设了壁纸时仍走壁纸取色，纯色/渐变不受影响。
+ */
+val PersonalCourseCardPalette = listOf(
+    0xFF49A078L,//深绿色
+    0xFF7E8287L,//灰色
+    0xFFFBB7C0L,//浅粉色
+    0xFFD17D66L,//陶土色
+    0xFFC1A9F4L,//浅紫色
+    0xFFE6B475L,//杏色
+    0xFFED7C98L,//粉红色
+    0xFFE98C75L,//珊瑚橘
+    0xFF67CBCCL,//青绿色
+//0xFFBEA9F8L,//浅紫色
+    0xFFA5C882L,//浅绿色
+    0xFF86ADFAL,//浅蓝色
+)
+
 val LocalCourseCardPalette = compositionLocalOf { DefaultCourseCardPalette }
 val LocalCourseCardColorAssignments = compositionLocalOf<Map<String, Long>> { emptyMap() }
 
 /**
- * Read-only sink for the per-course colour pickers.
+ * Palette the per-course colour pickers offer, i.e. exactly the colours the cards can take.
  *
- * When the automatic path generates one hue per course, [LocalCourseCardPalette] can no longer
- * describe what the cards actually use, so the pickers read the assigned colours from here
- * instead. This local is a sink only: nothing feeds it back into
- * [buildCourseCardColorAssignments], which is what keeps the automatic palette independent of the
- * number of courses. `null` means "no generated palette in play, use [LocalCourseCardPalette]".
+ * Sourced from [LocalCourseCardPalette] so a picker never offers a swatch the schedule will not
+ * actually use.
  */
-val LocalCourseCardPickerPalette = compositionLocalOf<List<Long>?> { null }
-
 @Composable
 internal fun courseCardPickerPalette(): List<Long> =
-    LocalCourseCardPickerPalette.current
-        ?: LocalCourseCardPalette.current.ifEmpty { DefaultCourseCardPalette }
+    LocalCourseCardPalette.current.ifEmpty { DefaultCourseCardPalette }
 
 fun encodeCourseCardPalette(colors: List<Long>): String = colors.asSequence()
     .map { it and 0xFFFFFFFFL }
@@ -130,22 +158,17 @@ fun courseCardAllowsCustomOverrides(config: ScheduleConfigEntity): Boolean =
     config.courseCardColorMode == CourseCardColorMode.COLORFUL
 
 /**
- * True when the course palette should be generated per course name rather than sampled from a
- * fixed seed palette, so the number of distinct colours grows with the number of courses.
+ * True when card colours should come from [PersonalCourseCardPalette] verbatim.
  *
- * Deliberately narrow, matching the agreed scope:
- *
- * - an explicit user palette always wins, so a saved preference is never reinterpreted;
- * - the wallpaper path is untouched — cards there are translucent glass over busy imagery, where
- *   per-course hues read as noise rather than as identity;
- * - SOLID keeps its single/multi preset colour and GRADIENT keeps its one light-to-dark family.
+ * Deliberately narrow, matching the agreed scope: COLORFUL only, and only without a wallpaper —
+ * cards over wallpaper are translucent glass sampled from busy imagery, where the written-in
+ * palette would fight the backdrop. SOLID keeps its single/preset colour, GRADIENT keeps its one
+ * light-to-dark family, and an explicit wallpaper path keeps sampling the wallpaper.
  *
  * Cheap enough to be read once per config change rather than once per card.
  */
-fun courseCardUsesGeneratedHues(config: ScheduleConfigEntity): Boolean =
-    config.courseCardColorMode == CourseCardColorMode.COLORFUL &&
-        !config.hasAnyWallpaper() &&
-        decodeCourseCardPalette(config.courseCardPalette).isEmpty()
+fun courseCardUsesPersonalPalette(config: ScheduleConfigEntity): Boolean =
+    config.courseCardColorMode == CourseCardColorMode.COLORFUL && !config.hasAnyWallpaper()
 
 fun resolvedCourseCardPalette(
     config: ScheduleConfigEntity,
@@ -160,11 +183,18 @@ fun resolvedCourseCardPalette(
         // 无壁纸纯色卡片：默认使用多彩预制色而非单一浅蓝
         DefaultCourseCardPalette
     }
-    CourseCardColorMode.COLORFUL -> decodeCourseCardPalette(config.courseCardPalette)
-        .ifEmpty {
-            if (config.hasAnyWallpaper()) wallpaperColors else DefaultCourseCardPalette
-        }
-        .ifEmpty { DefaultCourseCardPalette }
+    // The written-in palette wins over everything else in COLORFUL without a wallpaper, including
+    // an explicit palette saved from the colour picker: otherwise a single tap in that dialog would
+    // silently take the hardcoded colours out of play.
+    CourseCardColorMode.COLORFUL -> if (courseCardUsesPersonalPalette(config)) {
+        PersonalCourseCardPalette
+    } else {
+        decodeCourseCardPalette(config.courseCardPalette)
+            .ifEmpty {
+                if (config.hasAnyWallpaper()) wallpaperColors else DefaultCourseCardPalette
+            }
+            .ifEmpty { DefaultCourseCardPalette }
+    }
 }
 
 fun courseCardColorKey(course: CourseEntity): String =
@@ -256,122 +286,45 @@ internal fun courseCardPerceptualDistance(first: Long, second: Long): Double {
 }
 
 /** Appearance distance two vertically adjacent cards must keep; matches the existing test bar. */
-internal const val IdentityHueCollisionDistance = 0.20
-private const val IdentityHueStepDegrees = 1.5f
+private const val AdjacentCardCollisionDistance = 0.20
 
 /**
- * How far the hue walk may travel. Capping it at 24 degrees costs nothing — every adjacent pair in
- * a densely packed week still clears [IdentityHueCollisionDistance] — and it is what keeps the
- * scheme stable in practice: a card that is later freed from a collision settles back towards its
- * identity colour by less than one collision threshold, so removing a course cannot visibly
- * recolour its neighbours. Letting the walk run the full wheel produced the same separation but
- * settles three times larger, which users do see.
- */
-private const val IdentityHueMaxSteps = 16
-
-/**
- * Tone offsets tried only after the hue walk has failed. Hue alone cannot separate a dense column:
- * ten neighbours cannot all sit ~50 degrees apart on a circle, so depth has to carry some of the
- * contrast. Bounds match the muted non-tonal generation band so a nudged card still belongs to the
- * same palette rather than jumping out as a highlight.
- */
-private val IdentityToneOffsets = listOf(
-    0f to 0f,
-    0.10f to 0f, -0.10f to 0f,
-    0f to 0.06f, 0f to -0.06f,
-    0.18f to 0.06f, -0.18f to 0.06f,
-    0.18f to -0.06f, -0.18f to -0.06f,
-    0.26f to 0.10f, -0.26f to 0.10f,
-    0.26f to -0.10f, -0.26f to -0.10f
-)
-
-// Distinct salts keep the hue, saturation, value and placement channels independent of each other.
-private const val IdentitySaltHue = 0x1D2B
-private const val IdentitySaltSaturation = 0x3C4D
-private const val IdentitySaltValue = 0x5E6F
-private const val IdentitySaltOrder = 0x7081
-
-/**
- * FNV-1a plus a lowbias32 avalanche.
+ * Hands out colours from a fixed written-in palette, using only the palette's own entries.
  *
- * `String.hashCode()` alone is unusable here: consecutive course names such as "课程1" and "课程2"
- * differ only in their low bits, so they would land on neighbouring hues and look like one colour.
- */
-private fun courseCardMixedHash(value: String, salt: Int): Int {
-    var hash = 0x811C9DC5.toInt() xor salt
-    value.forEach { character ->
-        hash = (hash xor character.code) * 0x01000193
-    }
-    hash = hash xor (hash ushr 16)
-    hash *= 0x7FEB352D
-    hash = hash xor (hash ushr 15)
-    hash *= 0x846CA68B.toInt()
-    hash = hash xor (hash ushr 16)
-    return hash
-}
-
-private fun courseCardHashUnit(value: String, salt: Int): Float =
-    ((courseCardMixedHash(value, salt).toLong() and 0xFFFFFFFFL).toDouble() / 4294967296.0).toFloat()
-
-/**
- * The colour a course owns by name alone, independent of every other course in the schedule.
+ * Allocation walks the courses in **creation order** and prefers an entry that has not been handed
+ * out yet, so the palette is used up in full before any colour repeats. Only once every entry is in
+ * play does a card accept a repeat, and even then it still refuses to sit next to a card wearing a
+ * colour it cannot be told apart from.
  *
- * Saturation and value stay inside the muted envelope used by the existing non-tonal generation
- * band, so generated hues read as the same family of colours rather than as neon. Hue is uniform
- * over the wheel, which is the whole point: the palette can now hold as many distinct colours as
- * the user adds courses.
- */
-internal fun courseCardIdentityColor(key: String): Long = courseCardArgb(
-    CourseCardHsv(
-        hue = courseCardHashUnit(key, IdentitySaltHue) * 360f,
-        saturation = 0.42f + courseCardHashUnit(key, IdentitySaltSaturation) * 0.24f,
-        value = 0.84f + courseCardHashUnit(key, IdentitySaltValue) * 0.10f
-    )
-)
-
-/**
- * Places every identity colour, nudging a card along the hue wheel only when it would otherwise be
- * indistinguishable from a card it sits directly next to.
+ * Creation order is what makes that safe to do. A newly added course has the newest id, so it is
+ * always allocated last and can never take an entry out from under a card that is already on screen:
+ * **adding a course never recolours anything**, unconditionally, not merely for courses that happen
+ * to be far apart.
  *
- * Keeping courses on their own colour across edits is the requirement. The placement order is a
- * total order over the course names themselves, so it does not change when the course set does:
- * adding or removing a course cannot reorder the courses that were already placed, and a card is
- * only ever nudged by a neighbour placed before it. That leaves exactly one exception — a card that
- * genuinely becomes adjacent to a newly added colliding neighbour — which is the behaviour the
- * "adjacent cards must differ" rule asks for.
+ * Removing a course is the exception. It frees an entry, and because the palette is walked in order,
+ * every card created after it may shift onto a different entry outright rather than settling back by
+ * a few degrees. That reshuffle is the accepted cost of "one written-in palette, distributed
+ * automatically"; the per-course identity colour scheme this replaces could bound the shift only
+ * because it derived each colour from the name alone.
  */
-private fun buildIdentityHueAssignments(
+private fun buildExactPaletteAssignments(
     keys: List<String>,
-    adjacentKeys: Map<String, Set<String>>
+    adjacentKeys: Map<String, Set<String>>,
+    orderKeys: List<String>,
+    bases: List<Long>
 ): Map<String, Long> {
-    val placementOrder = keys.sortedBy { courseCardMixedHash(it, IdentitySaltOrder) }
+    val remaining = bases.toMutableList()
     val assigned = HashMap<String, Long>(keys.size)
-    placementOrder.forEach { key ->
-        val identity = courseCardHsv(courseCardIdentityColor(key))
+    orderKeys.forEach { key ->
         val placedNeighbours = adjacentKeys[key].orEmpty().mapNotNull(assigned::get)
-        var color = courseCardArgb(identity)
-        // Hue first, tone only as a fallback: a few degrees of hue is far less visible than a step
-        // in saturation or brightness. An empty neighbour list accepts the identity colour on the
-        // first test, so the common case costs one iteration.
-        toneSearch@ for ((saturationOffset, valueOffset) in IdentityToneOffsets) {
-            val tone = identity.copy(
-                saturation = (identity.saturation + saturationOffset).coerceIn(0.30f, 0.74f),
-                value = (identity.value + valueOffset).coerceIn(0.80f, 0.97f)
-            )
-            for (step in 0..IdentityHueMaxSteps) {
-                // Walk outward from the identity hue in both directions so a collision costs the
-                // smallest visible deviation that resolves it.
-                val drift = step * IdentityHueStepDegrees * if (step % 2 == 0) -1f else 1f
-                val candidate = courseCardArgb(tone.copy(hue = (tone.hue + drift + 360f) % 360f))
-                if (placedNeighbours.none {
-                        courseCardAppearanceDistance(it, candidate) < IdentityHueCollisionDistance
-                    }
-                ) {
-                    color = candidate
-                    break@toneSearch
-                }
-            }
+        fun distinguishable(candidate: Long) = placedNeighbours.none {
+            courseCardAppearanceDistance(it, candidate) < AdjacentCardCollisionDistance
         }
+        // 先发没出现过的颜色，色表用满之后才开始复用；两者都优先保证相邻不同色。
+        val color = remaining.firstOrNull { distinguishable(it) }
+            ?: bases.firstOrNull { distinguishable(it) }
+            ?: bases.first()
+        remaining.remove(color)
         assigned[key] = color
     }
     return keys.associateWith { assigned.getValue(it) }
@@ -381,7 +334,7 @@ fun buildCourseCardColorAssignments(
     courses: List<CourseEntity>,
     representativeColors: List<Long>,
     tonalFamily: Boolean = representativeColors.size == 1,
-    identityHues: Boolean = false
+    exactPalette: Boolean = false
 ): Map<String, Long> {
     val keys = courses.map(::courseCardColorKey).distinct().sorted()
     val coursesByKey = courses.groupBy(::courseCardColorKey)
@@ -405,7 +358,20 @@ fun buildCourseCardColorAssignments(
         keys.asSequence().filter { it != key && areCardsLikelyAdjacent(key, it) }.toSet()
     }
     if (keys.isEmpty()) return emptyMap()
-    if (identityHues) return buildIdentityHueAssignments(keys, adjacentKeys)
+    // 写死色表：原样使用，跳过下面的柔化，也跳过整个候选生成器。
+    if (exactPalette) {
+        val writtenIn = representativeColors.ifEmpty { PersonalCourseCardPalette }
+            .distinct()
+            .ifEmpty { DefaultCourseCardPalette }
+        // 按课程创建顺序发放（同名的课程取最早的那个 id），这样新加的课程永远排在最后，
+        // 不会抢走已经在屏幕上的课程的颜色。
+        val orderKeys = keys.sortedWith(
+            compareBy<String> {
+                coursesByKey[it].orEmpty().minOfOrNull { course -> course.id } ?: Long.MAX_VALUE
+            }.thenBy { it }
+        )
+        return buildExactPaletteAssignments(keys, adjacentKeys, orderKeys, writtenIn)
+    }
     val bases = representativeColors.ifEmpty { DefaultCourseCardPalette }
         .map { color ->
             val hsv = courseCardHsv(color)
