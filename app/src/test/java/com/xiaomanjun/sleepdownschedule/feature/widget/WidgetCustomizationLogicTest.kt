@@ -61,16 +61,17 @@ class WidgetCustomizationLogicTest {
     }
 
     @Test
-    fun compactHeightKeepsOneRowAndHidesTheRest() {
+    fun compactHeightShrinksRowsToStackTwoCourses() {
         val compact = coursesWidgetLayoutMetrics(
             WidgetRenderSize(320, 110),
             TodayWidgetVariant.LARGE,
             courseCount = 2
         )
 
-        assertEquals(1, compact.rowCapacity)
-        assertEquals(1, compact.maxCourses)
-        assertTrue(compact.groupHeightDp >= 44)
+        // 110dp 是 appwidget-provider 声明的 4×2 最小高度，真机上就是这个尺寸：
+        // 54dp 的舒适行高只排得下 1 节，压到 34dp 才排得下 2 节。
+        assertEquals(2, compact.maxCourses)
+        assertEquals(34, compact.groupHeightDp)
     }
 
     @Test
@@ -89,9 +90,8 @@ class WidgetCustomizationLogicTest {
         // 4×2 放得下两行：第三门课不显示，行高保持 54dp 不变形。
         assertEquals(2, short.maxCourses)
         assertEquals(54, short.groupHeightDp)
-        // 拉高后三行够用，三节课都在。
-        assertEquals(3, tall.rowCapacity)
-        assertEquals(3, tall.maxCourses)
+        // 拉高后四行都排得下。
+        assertEquals(4, tall.maxCourses)
     }
 
     @Test

@@ -2,9 +2,9 @@
 <!--
     今日课程 4×2 在小组件选择器里的预览（appwidget-provider 的 previewLayout）。
 
-    这里必须和 widget_today_courses_miuix.xml 在 4×2 下的真实渲染对齐，否则选择器里看到的
-    和拖到桌面后拿到的不是一个东西。336×168dp 下 coursesWidgetLayoutMetrics 算出
-    rowCapacity = 2：168 - 14×2 内边距 - 24 头部 - 4 上边距 = 112dp，正好两行 54dp（间距 4dp），
+    这里是选择器给出的 336×168dp 预览尺寸，不是桌面上的真实尺寸：真机 4×2 只有 ~110dp
+    （appwidget-provider 的 minHeight），那时行高会被压到 34dp 来排下两节。168dp 下
+    168 - 14×2 内边距 - 24 头部 - 4 上边距 = 112dp，正好两行 54dp（间距 4dp），
     第三行放不下，所以这里是两行而不是四行。
 
     文字颜色与字号取运行时深色分支的值：标题 17sp、副标题 15sp，起始时间 13.8sp→14sp、

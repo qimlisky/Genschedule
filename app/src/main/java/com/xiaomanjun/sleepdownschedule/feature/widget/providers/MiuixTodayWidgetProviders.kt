@@ -40,6 +40,12 @@ internal enum class TodayWidgetVariant { LARGE, SQUARE }
 
 private val widgetWorkMutex = Mutex()
 
+// 课程行高的两个档位：
+//  - ComfortableCourseRowHeightDp 是「好看」的行高，按它排得下就不压缩；
+//  - MinimumCourseRowHeightDp 是还能读清的行高下限，再低就不往下塞课，改成少显示几节。
+private const val ComfortableCourseRowHeightDp = 44
+private const val MinimumCourseRowHeightDp = 34
+
 internal data class CoursesWidgetLayoutMetrics(
     val horizontalPaddingDp: Int,
     val verticalPaddingDp: Int,
@@ -48,7 +54,6 @@ internal data class CoursesWidgetLayoutMetrics(
     val groupGapDp: Int,
     val groupHeightDp: Int,
     val groupVerticalPaddingDp: Int,
-    val rowCapacity: Int,
     val maxCourses: Int,
     val indicatorHeightDp: Int,
     val groupCornerRadiusDp: Int,
@@ -73,32 +78,45 @@ internal fun coursesWidgetLayoutMetrics(
     } else {
         (10f + 4f * widthProgress).roundToInt()
     }
-    val verticalPaddingDp = (8f + (if (isSquare) 3f else 6f) * heightProgress).roundToInt()
+    // 4×2 的真机高度只有 ~110dp（appwidget-provider 里 minHeight=110dp），不是应用内预览用的
+    // 168dp。所以竖向内边距按高度平方增长：矮的时候几乎不占地方，把省下的都留给课程行。
+    val verticalPaddingDp = if (isSquare) {
+        (8f + 3f * heightProgress).roundToInt()
+    } else {
+        (6f + 8f * heightProgress * heightProgress).roundToInt()
+    }
     val headerHeightDp = (22f + 2f * heightProgress).roundToInt()
     val courseTopMarginDp = 4
     val groupGapDp = 4
     val preferredGroupHeightDp = if (isSquare) 50 else (54f + 12f * expansionProgress).roundToInt()
     val availableHeightDp = (
         size.heightDp - verticalPaddingDp * 2 - headerHeightDp - courseTopMarginDp
-    ).coerceAtLeast(34)
+    ).coerceAtLeast(MinimumCourseRowHeightDp)
     val maximumRows = if (isSquare) 2 else 4
-    val rowCapacity = floor(
+    val comfortableRows = floor(
         (availableHeightDp + groupGapDp).toFloat() /
-            (preferredGroupHeightDp + groupGapDp).toFloat()
+            (ComfortableCourseRowHeightDp + groupGapDp).toFloat()
     ).toInt().coerceIn(1, maximumRows)
-    // 装不下的课就不显示：既不折成左右两列，也不把行高压到读不出来（见下面 groupHeightDp 的下限）。
-    val maxCourses = rowCapacity
+    val legibleRows = floor(
+        (availableHeightDp + groupGapDp).toFloat() /
+            (MinimumCourseRowHeightDp + groupGapDp).toFloat()
+    ).toInt().coerceIn(1, maximumRows)
+    // 先按舒适行高排；一行都排不满两节时退让到最小可读行高，只要还排得下两行就排两行。
+    // 装不下的课就不显示：既不折成左右两列，也不把行高压到读不出来。
+    val maxCourses = comfortableRows.coerceAtLeast(minOf(2, legibleRows))
     val visibleCourses = courseCount.coerceAtMost(maxCourses).coerceAtLeast(1)
     val usedRows = visibleCourses
     val groupHeightDp = floor(
         (availableHeightDp - groupGapDp * (usedRows - 1)).toFloat() / usedRows.toFloat()
-    ).toInt().coerceIn(34, preferredGroupHeightDp)
-    val groupVerticalPaddingDp = (3f + 2f * progress(groupHeightDp, 38, preferredGroupHeightDp))
+    ).toInt().coerceIn(MinimumCourseRowHeightDp, preferredGroupHeightDp)
+    val groupVerticalPaddingDp = (2f + 3f * progress(groupHeightDp, 38, preferredGroupHeightDp))
         .roundToInt()
     val fontCompensation = (1f / (1f + (fontScale.coerceAtLeast(1f) - 1f) * 0.52f))
         .coerceIn(0.82f, 1f)
+    // 行高压到 34dp 时字号要跟着降到最小档（typography 里的 minimum 兜底），否则两行文字会被裁掉。
     val groupScale = (
-        0.86f + 0.20f * progress(groupHeightDp, 34, preferredGroupHeightDp) + 0.06f * expansionProgress
+        0.70f + 0.36f * progress(groupHeightDp, MinimumCourseRowHeightDp, preferredGroupHeightDp) +
+            0.06f * expansionProgress
     )
     val textScale = minOf(groupScale, 0.96f + 0.12f * widthProgress, fontCompensation)
     val indicatorHeightDp = ((groupHeightDp - groupVerticalPaddingDp * 2) * 0.82f)
@@ -106,7 +124,8 @@ internal fun coursesWidgetLayoutMetrics(
         .coerceIn(8, 44)
     val shortSideProgress = progress(minOf(size.widthDp, size.heightDp), 100, 320)
     val groupCornerRadiusDp = (
-        11f + 3f * progress(groupHeightDp, 34, preferredGroupHeightDp) + 2f * shortSideProgress
+        11f + 3f * progress(groupHeightDp, MinimumCourseRowHeightDp, preferredGroupHeightDp) +
+            2f * shortSideProgress
     ).roundToInt()
 
     return CoursesWidgetLayoutMetrics(
@@ -117,7 +136,6 @@ internal fun coursesWidgetLayoutMetrics(
         groupGapDp = groupGapDp,
         groupHeightDp = groupHeightDp,
         groupVerticalPaddingDp = groupVerticalPaddingDp,
-        rowCapacity = rowCapacity,
         maxCourses = maxCourses,
         indicatorHeightDp = indicatorHeightDp,
         groupCornerRadiusDp = groupCornerRadiusDp,
