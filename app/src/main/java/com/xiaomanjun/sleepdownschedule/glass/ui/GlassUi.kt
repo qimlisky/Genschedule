@@ -1424,33 +1424,27 @@ fun CourseGlassCard(
         // The hairline is drawn on an outline inset by half the stroke so the whole stroke lands
         // inside the card. A centred border would spill half of itself into the 4dp gutter the
         // week grid leaves between cards.
-        //管理课程卡片的
+        //管理课程卡片的边线
         if (cardOutline) {
             Box(
                 Modifier
                     .matchParentSize()
-                    .clip(shape)
-                    .drawBehind {
-                        val strokeWidth = ceil(1.dp.toPx())
-                            .coerceIn(1f, size.minDimension / 2f)
-                        if (size.minDimension < strokeWidth * 2f) return@drawBehind
-                        translate(strokeWidth / 2f, strokeWidth / 2f) {
-                            drawOutline(
-                                outline = shape.createOutline(
-                                    size = Size(
-                                        size.width - strokeWidth,
-                                        size.height - strokeWidth
-                                    ),
-                                    layoutDirection = layoutDirection,
-                                    density = this
-                                ),
-                                //卡片边缘边线颜色
-                                color = Color(0xE8FFFFFF),
-                                alpha = 0.6f,
-                                style = Stroke(width = strokeWidth)
-                            )
-                        }
+                    .drawBehind {                 // ← 先画描边（不被裁）
+                        val w = ceil(2.dp.toPx()).coerceIn(1f, size.minDimension / 2f)
+                        if (size.minDimension < w * 2f) return@drawBehind
+                        val outline = shape.createOutline(
+                            size = size,          // 完整 size
+                            layoutDirection = layoutDirection,
+                            density = this
+                        )
+                        drawOutline(
+                            outline = outline,
+                            color = Color(0xE8FFFFFF),
+                            alpha = 0.6f,
+                            style = Stroke(width = w)
+                        )
                     }
+                    .clip(shape)                  // ← 后裁，只裁内容
             )
         }
         if (pressed) {

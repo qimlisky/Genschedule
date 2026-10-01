@@ -8563,7 +8563,7 @@ fun AboutSettingsScreen(state: AppState, backdrop: Backdrop?) {
         item(key = "about-project") {
             GlassPreferenceSection("项目信息") {
                 SettingsGroup(backdrop = backdrop, config = state.config, modifier = Modifier.fillMaxWidth()) {
-                    SettingsValueRow("开发与维护", "小漫君 / xiaomanjun233")
+                    SettingsValueRow("开发与维护", "qimlisky / Genschedule")
                     SettingsDivider()
                     SettingsValueRow("当前版本", versionName)
                     SettingsDivider()
@@ -8619,8 +8619,8 @@ fun AboutSettingsScreen(state: AppState, backdrop: Backdrop?) {
     }
 }
 
-private const val SleepDownWebsiteUrl = "https://xiaomanjun233.github.io/SleepDown-Schedule/"
-private const val SleepDownSourceUrl = "https://github.com/xiaomanjun233/SleepDown-Schedule"
+private const val SleepDownWebsiteUrl = "https://github.com/qimlisky/Genschedule"
+private const val SleepDownSourceUrl = "https://github.com/qimlisky/Genschedule"
 private const val SleepDownReleasesUrl = "$SleepDownSourceUrl/releases"
 private const val SleepDownIssuesUrl = "$SleepDownSourceUrl/issues"
 private const val SleepDownLicenseUrl = "$SleepDownSourceUrl/blob/main/LICENSE.md"
@@ -8813,7 +8813,7 @@ private fun AboutHero(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "SleepDown 课程表",
+                text = "Genschedule 课程表",
                 style = MaterialTheme.typography.displaySmall.copy(brush = titleBrush),
                 fontSize = if (maxWidth < 320.dp) 30.sp else 36.sp,
                 lineHeight = if (maxWidth < 320.dp) 36.sp else 43.sp,
@@ -8832,7 +8832,7 @@ private fun AboutHero(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "版本 $versionName  ·  小漫君独立设计与开发",
+            text = "版本 $versionName",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.56f)
@@ -9039,7 +9039,7 @@ fun ChangelogSettingsScreen(
             }
             item(key = "about-project") {
                 AboutGlassPanel(darkTheme = darkTheme, modifier = Modifier.fillMaxWidth()) {
-                    SettingsValueRow("项目作者", "小漫君 / xiaomanjun233")
+                    SettingsValueRow("项目作者", "qimlisky")
                     SettingsDivider()
                     Row(
                         modifier = Modifier
@@ -9077,6 +9077,12 @@ fun ChangelogSettingsScreen(
                     AboutCreditLinkRow(
                         author = "xingheyuzhuan",
                         repository = "shiguang_warehouse",
+                        onClick = { openProjectPage(ShiguangWarehouseUrl) }
+                    )
+                    SettingsDivider()
+                    AboutCreditLinkRow(
+                        author = "xiaomanjun233",
+                        repository = "SleepDown-Schedule",
                         onClick = { openProjectPage(ShiguangWarehouseUrl) }
                     )
                 }
