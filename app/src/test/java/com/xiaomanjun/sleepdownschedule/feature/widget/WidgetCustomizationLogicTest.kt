@@ -51,30 +51,30 @@ class WidgetCustomizationLogicTest {
     @Test
     fun eachCourseIndicatorFitsItsOwnCenteredContentRegion() {
         val size = WidgetRenderSize(336, 168)
-        val list = coursesWidgetLayoutMetrics(size, TodayWidgetVariant.LARGE, courseCount = 2)
-        val grid = coursesWidgetLayoutMetrics(size, TodayWidgetVariant.LARGE, courseCount = 4)
+        val pair = coursesWidgetLayoutMetrics(size, TodayWidgetVariant.LARGE, courseCount = 2)
+        val four = coursesWidgetLayoutMetrics(size, TodayWidgetVariant.LARGE, courseCount = 4)
 
-        assertTrue(list.indicatorHeightDp <= list.groupHeightDp - list.groupVerticalPaddingDp * 2)
-        assertTrue(grid.indicatorHeightDp <= grid.groupHeightDp - grid.groupVerticalPaddingDp * 2)
-        assertEquals(list.groupHeightDp, grid.groupHeightDp)
+        assertTrue(pair.indicatorHeightDp <= pair.groupHeightDp - pair.groupVerticalPaddingDp * 2)
+        assertTrue(four.indicatorHeightDp <= four.groupHeightDp - four.groupVerticalPaddingDp * 2)
+        // 装不下的课只是不显示，不会把已有的行压矮。
+        assertEquals(pair.groupHeightDp, four.groupHeightDp)
     }
 
     @Test
-    fun compactHeightUsesOneGridRowInsteadOfCrushingTwoListRows() {
+    fun compactHeightKeepsOneRowAndHidesTheRest() {
         val compact = coursesWidgetLayoutMetrics(
             WidgetRenderSize(320, 110),
             TodayWidgetVariant.LARGE,
             courseCount = 2
         )
 
-        assertTrue(compact.useGrid)
         assertEquals(1, compact.rowCapacity)
-        assertEquals(2, compact.maxCourses)
+        assertEquals(1, compact.maxCourses)
         assertTrue(compact.groupHeightDp >= 44)
     }
 
     @Test
-    fun foldingUsesActualHostHeightInsteadOfCourseCountAlone() {
+    fun extraCoursesAreHiddenInsteadOfFoldedIntoTwoColumns() {
         val short = coursesWidgetLayoutMetrics(
             WidgetRenderSize(336, 168),
             TodayWidgetVariant.LARGE,
@@ -86,10 +86,12 @@ class WidgetCustomizationLogicTest {
             courseCount = 3
         )
 
-        assertTrue(short.useGrid)
-        assertFalse(tall.useGrid)
-        assertEquals(3, tall.maxCourses)
+        // 4×2 放得下两行：第三门课不显示，行高保持 54dp 不变形。
+        assertEquals(2, short.maxCourses)
+        assertEquals(54, short.groupHeightDp)
+        // 拉高后三行够用，三节课都在。
         assertEquals(3, tall.rowCapacity)
+        assertEquals(3, tall.maxCourses)
     }
 
     @Test
@@ -107,8 +109,8 @@ class WidgetCustomizationLogicTest {
 
         assertTrue(tall.groupHeightDp > regular.groupHeightDp)
         assertTrue(tall.groupHeightDp - regular.groupHeightDp <= 12)
-        assertEquals(4, regular.maxCourses)
-        assertEquals(8, tall.maxCourses)
+        assertEquals(2, regular.maxCourses)
+        assertEquals(4, tall.maxCourses)
         assertTrue(tall.groupCornerRadiusDp > regular.groupCornerRadiusDp)
     }
 

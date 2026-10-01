@@ -33,7 +33,6 @@ import java.time.Duration
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -51,7 +50,6 @@ internal data class CoursesWidgetLayoutMetrics(
     val groupVerticalPaddingDp: Int,
     val rowCapacity: Int,
     val maxCourses: Int,
-    val useGrid: Boolean,
     val indicatorHeightDp: Int,
     val groupCornerRadiusDp: Int,
     val textScale: Float
@@ -88,15 +86,10 @@ internal fun coursesWidgetLayoutMetrics(
         (availableHeightDp + groupGapDp).toFloat() /
             (preferredGroupHeightDp + groupGapDp).toFloat()
     ).toInt().coerceIn(1, maximumRows)
-    // Fold into two columns only when the host's real height cannot fit the visible courses.
-    val useGrid = !isSquare && courseCount > rowCapacity
-    val maxCourses = when {
-        isSquare -> rowCapacity.coerceAtMost(2)
-        useGrid -> rowCapacity * 2
-        else -> rowCapacity
-    }
+    // 装不下的课就不显示：既不折成左右两列，也不把行高压到读不出来（见下面 groupHeightDp 的下限）。
+    val maxCourses = rowCapacity
     val visibleCourses = courseCount.coerceAtMost(maxCourses).coerceAtLeast(1)
-    val usedRows = if (useGrid) ceil(visibleCourses / 2f).toInt() else visibleCourses
+    val usedRows = visibleCourses
     val groupHeightDp = floor(
         (availableHeightDp - groupGapDp * (usedRows - 1)).toFloat() / usedRows.toFloat()
     ).toInt().coerceIn(34, preferredGroupHeightDp)
@@ -126,7 +119,6 @@ internal fun coursesWidgetLayoutMetrics(
         groupVerticalPaddingDp = groupVerticalPaddingDp,
         rowCapacity = rowCapacity,
         maxCourses = maxCourses,
-        useGrid = useGrid,
         indicatorHeightDp = indicatorHeightDp,
         groupCornerRadiusDp = groupCornerRadiusDp,
         textScale = textScale
@@ -340,44 +332,6 @@ private fun RemoteViews.applyCoursesWidgetLayout(
             px(metrics.groupVerticalPaddingDp)
         )
         setWidgetCornerRadius(row, metrics.groupCornerRadiusDp)
-    }
-    if (variant == TodayWidgetVariant.LARGE) {
-        intArrayOf(
-            R.id.widget_grid_row_1,
-            R.id.widget_grid_row_2,
-            R.id.widget_grid_row_3,
-            R.id.widget_grid_row_4
-        ).forEach { setWidgetHeight(it, metrics.groupHeightDp) }
-        intArrayOf(
-            R.id.widget_grid_content_1,
-            R.id.widget_grid_content_2,
-            R.id.widget_grid_content_3,
-            R.id.widget_grid_content_4,
-            R.id.widget_grid_content_5,
-            R.id.widget_grid_content_6,
-            R.id.widget_grid_content_7,
-            R.id.widget_grid_content_8
-        ).forEach { content ->
-            setViewPadding(
-                content,
-                px(7),
-                px(metrics.groupVerticalPaddingDp),
-                px(7),
-                px(metrics.groupVerticalPaddingDp)
-            )
-        }
-        intArrayOf(
-            R.id.widget_grid_cell_1,
-            R.id.widget_grid_cell_2,
-            R.id.widget_grid_cell_3,
-            R.id.widget_grid_cell_4,
-            R.id.widget_grid_cell_5,
-            R.id.widget_grid_cell_6,
-            R.id.widget_grid_cell_7,
-            R.id.widget_grid_cell_8
-        ).forEach { cell ->
-            setWidgetCornerRadius(cell, metrics.groupCornerRadiusDp)
-        }
     }
 }
 
@@ -606,7 +560,7 @@ internal object MiuixTodayWidgetRenderer {
         )
         val courses = allCourses.take(metrics.maxCourses)
         val layout = when (variant) {
-            TodayWidgetVariant.LARGE -> R.layout.widget_today_courses_miuix_adaptive_v4
+            TodayWidgetVariant.LARGE -> R.layout.widget_today_courses_miuix_adaptive_v5
             TodayWidgetVariant.SQUARE -> R.layout.widget_today_courses_square_adaptive_v2
         }
         val dark = usesDarkTheme(context, state.config)
@@ -656,30 +610,17 @@ internal object MiuixTodayWidgetRenderer {
                 TodayWidgetVariant.LARGE -> {
                     setViewVisibility(
                         R.id.widget_large_courses,
-                        if (!metrics.useGrid && courses.isNotEmpty()) View.VISIBLE else View.GONE
+                        if (courses.isNotEmpty()) View.VISIBLE else View.GONE
                     )
-                    setViewVisibility(R.id.widget_grid_courses, if (metrics.useGrid) View.VISIBLE else View.GONE)
-                    if (metrics.useGrid) {
-                        fillGridCourses(
-                            state,
-                            courses,
-                            dark,
-                            custom,
-                            typography,
-                            metrics,
-                            courseColorAssignments
-                        )
-                    } else {
-                        fillLargeCourses(
-                            state,
-                            courses,
-                            dark,
-                            custom,
-                            typography,
-                            metrics,
-                            courseColorAssignments
-                        )
-                    }
+                    fillLargeCourses(
+                        state,
+                        courses,
+                        dark,
+                        custom,
+                        typography,
+                        metrics,
+                        courseColorAssignments
+                    )
                 }
                 TodayWidgetVariant.SQUARE -> fillCompactCourses(
                     state,
@@ -790,85 +731,6 @@ internal object MiuixTodayWidgetRenderer {
                 setTextColor(ends[index], secondary ?: if (dark) Color.argb(140, 255, 255, 255) else Color.argb(105, 17, 17, 17))
                 setTextColor(names[index], primary ?: if (dark) Color.WHITE else Color.rgb(17, 17, 17))
                 setTextColor(details[index], secondary ?: if (dark) Color.argb(150, 255, 255, 255) else Color.argb(105, 17, 17, 17))
-            }
-        }
-    }
-
-    private fun RemoteViews.fillGridCourses(
-        state: AppState,
-        courses: List<CourseEntity>,
-        dark: Boolean,
-        custom: WidgetBackgroundResult?,
-        typography: CoursesWidgetTypography,
-        metrics: CoursesWidgetLayoutMetrics,
-        courseColorAssignments: Map<String, Int>
-    ) {
-        val rows = intArrayOf(
-            R.id.widget_grid_row_1,
-            R.id.widget_grid_row_2,
-            R.id.widget_grid_row_3,
-            R.id.widget_grid_row_4
-        )
-        val cells = intArrayOf(
-            R.id.widget_grid_cell_1, R.id.widget_grid_cell_2,
-            R.id.widget_grid_cell_3, R.id.widget_grid_cell_4,
-            R.id.widget_grid_cell_5, R.id.widget_grid_cell_6,
-            R.id.widget_grid_cell_7, R.id.widget_grid_cell_8
-        )
-        val indicators = intArrayOf(
-            R.id.widget_grid_indicator_1, R.id.widget_grid_indicator_2,
-            R.id.widget_grid_indicator_3, R.id.widget_grid_indicator_4,
-            R.id.widget_grid_indicator_5, R.id.widget_grid_indicator_6,
-            R.id.widget_grid_indicator_7, R.id.widget_grid_indicator_8
-        )
-        val names = intArrayOf(
-            R.id.widget_grid_name_1, R.id.widget_grid_name_2,
-            R.id.widget_grid_name_3, R.id.widget_grid_name_4,
-            R.id.widget_grid_name_5, R.id.widget_grid_name_6,
-            R.id.widget_grid_name_7, R.id.widget_grid_name_8
-        )
-        val details = intArrayOf(
-            R.id.widget_grid_detail_1, R.id.widget_grid_detail_2,
-            R.id.widget_grid_detail_3, R.id.widget_grid_detail_4,
-            R.id.widget_grid_detail_5, R.id.widget_grid_detail_6,
-            R.id.widget_grid_detail_7, R.id.widget_grid_detail_8
-        )
-        val backgrounds = intArrayOf(
-            R.id.widget_grid_background_1, R.id.widget_grid_background_2,
-            R.id.widget_grid_background_3, R.id.widget_grid_background_4,
-            R.id.widget_grid_background_5, R.id.widget_grid_background_6,
-            R.id.widget_grid_background_7, R.id.widget_grid_background_8
-        )
-        val courseBackground = if (dark) R.drawable.widget_course_background_compact_dark else R.drawable.widget_course_background_compact
-        val usedRows = ceil(courses.size / 2f).toInt()
-        rows.indices.forEach { index ->
-            setViewVisibility(rows[index], if (index < usedRows) View.VISIBLE else View.GONE)
-        }
-        cells.indices.forEach { index ->
-            val course = courses.getOrNull(index)
-            setViewVisibility(cells[index], if (course == null) View.INVISIBLE else View.VISIBLE)
-            if (course != null) {
-                applyWidgetCourseCardBackground(
-                    rowId = cells[index],
-                    backgroundId = backgrounds[index],
-                    custom = custom,
-                    cardIndex = index,
-                    defaultBackground = courseBackground
-                )
-                setTextViewText(names[index], course.name)
-                val time = courseStartTime(course, state.periods)?.format(timeFormatter).orEmpty()
-                val location = course.location?.takeIf(String::isNotBlank)
-                setTextViewText(details[index], listOfNotNull(time.takeIf(String::isNotBlank), location).joinToString(" · "))
-                setWidgetTextSize(names[index], typography.compactNameSp)
-                setWidgetTextSize(details[index], typography.compactDetailSp)
-                setWidgetIndicatorHeight(indicators[index], metrics.indicatorHeightDp)
-                setInt(
-                    indicators[index],
-                    "setColorFilter",
-                    WidgetCourseColors.color(state.config, course, courseColorAssignments)
-                )
-                setTextColor(names[index], custom?.content?.getOrNull(index) ?: custom?.header ?: if (dark) Color.WHITE else Color.rgb(17, 17, 17))
-                setTextColor(details[index], custom?.contentSecondary?.getOrNull(index) ?: custom?.headerSecondary ?: if (dark) Color.argb(150, 255, 255, 255) else Color.argb(105, 17, 17, 17))
             }
         }
     }

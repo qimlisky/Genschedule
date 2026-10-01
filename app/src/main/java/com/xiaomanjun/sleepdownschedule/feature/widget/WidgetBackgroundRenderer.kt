@@ -265,20 +265,11 @@ internal object WidgetBackgroundRenderer {
         val top = (
             metrics.verticalPaddingDp + metrics.headerHeightDp + metrics.courseTopMarginDp
         ).toFloat()
-        val regions = when {
-            count <= 0 -> emptyList()
-            metrics.useGrid -> {
-                val columnGap = 4f
-                val cellWidth = (right - left - columnGap) / 2f
-                List(count.coerceAtMost(metrics.maxCourses)) { index ->
-                    val row = index / 2
-                    val column = index % 2
-                    val cellLeft = if (column == 0) left else left + cellWidth + columnGap
-                    val cellTop = top + row * (metrics.groupHeightDp + metrics.groupGapDp)
-                    rect(cellLeft, cellTop, cellLeft + cellWidth, cellTop + metrics.groupHeightDp)
-                }
-            }
-            else -> List(count.coerceAtMost(metrics.maxCourses)) { index ->
+        // 始终单列上下排布；装不下的课不画底、也不在 RemoteViews 里显示。
+        val regions = if (count <= 0) {
+            emptyList()
+        } else {
+            List(count.coerceAtMost(metrics.maxCourses)) { index ->
                 val rowTop = top + index * (metrics.groupHeightDp + metrics.groupGapDp)
                 rect(left, rowTop, right, rowTop + metrics.groupHeightDp)
             }
