@@ -355,7 +355,7 @@ UI 必须按窗口、安全区、字体比例和当前数据自适应，并同�
 - 手机周视图节次栏与课程区余量、大屏布局和课程识别条保持既有已验收行为；
 - 课表切换统一走首页周视图长按入口 pill 与三点菜单「切换课表」→ `SchedulePickerOverlay`（Picker）路线；课表详细设置统一走 `SettingsPage.Schedule` / `SettingsDetailActivity`（`HomeToSettingsDetail` 路线）。历史上的半屏快速设置弹窗 `QuickScheduleSettingsSheets` 已废弃，不得恢复，也不得为其新增或复制第二套 Morph；`QuickSheetToSettingsDetail` 路线与 `QuickSheetSettingsDetailActivity` 作为稳定 wire id 保留；
 - 彩色（`COLORFUL`）+ 无壁纸的课程配色来自源码常量 `PersonalCourseCardPalette`（用户在 `glass/ui/GlassUi.kt` 手改），色值原样上屏、不柔化、不生成表外颜色。分发规则：**按课程创建顺序（`CourseEntity.id` 升序）发放，先把色表里的每个颜色都用过一次，才开始重复**；发放时优先保证同一天上下相邻的卡不同色，颜色不够时该优先让位于前两条。因此**新增课程绝不改变已有课程的颜色**（新课程 id 最大、排在最后），而**删除课程会释放其颜色、让创建时间更晚的卡片重新分配**（已知取舍，不是 bug）。该常量优先于库里保存的 `courseCardPalette`，因此「选择颜色」在彩色这一行置灰，设了壁纸时恢复可用。纯色与渐变的语义不变，有壁纸路径不变；
-- 手机周视图课程卡圆角基准由 8dp 调整为 6dp，并新增 1dp 白色半透明内描边（浅色 0.18 / 深色 0.24）；日视图与其它页面不变；
+- 手机周视图课程卡圆角基准由 8dp 调整为 6dp，并新增 2dp 白色半透明内描边（固定 alpha 0.6，内缩半个描边宽、整条落在卡内）；日视图与其它页面不变；
 - 教务页搜索胶囊、字母栏、Web/适配器详情页必须使用真实根层 Backdrop，不以半透明色伪装玻璃；
 - AI 历史和进度页沿用唯一详情链路，不复制页面。
 

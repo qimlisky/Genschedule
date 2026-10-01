@@ -213,7 +213,7 @@ Activity / Morph host
 | Dialog 操作高度 | 50dp |
 | Picker 默认正文间距 / 微边距 | 12dp / 2dp |
 | 手机周视图课程卡圆角基准 | 6dp（`PhoneWeekCardCornerRadiusDp`，滑条中点即此值） |
-| 手机周视图课程卡内描边 | 1dp 白色内描边；浅色 alpha 0.18、深色 0.24（`tokens.borderAlpha` × 浅色 0.75）。仅周视图及其抬起浮卡启用，日视图与课程管理不启用 |
+| 手机周视图课程卡内描边 | 2dp 白色内描边，固定 alpha 0.6（`GlassUi.kt` 写死，不再取 `tokens.borderAlpha`）；内缩半个描边宽，整条落在卡片内侧，祖先的 `clipToBounds` 切不到它。仅周视图及其抬起浮卡启用，日视图与课程管理不启用 |
 
 Token 表示全局语言。单个成熟 Morph 的源/目标圆角、轨迹、时序和弹簧参数继续留在 renderer，不因为数值相似就搬进全局 Token。
 

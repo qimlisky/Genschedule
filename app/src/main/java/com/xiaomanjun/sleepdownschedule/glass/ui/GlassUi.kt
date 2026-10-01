@@ -938,10 +938,32 @@ internal fun Modifier.verticalGlassAccent(
     lightGlass: Boolean,
     intensity: Float = 1f,
     expanded: Boolean = false,
+    borderEnabled: Boolean = true,
     morphAllocation: com.xiaomanjun.sleepdownschedule.glass.GlassMorphAllocation? = null
 ): Modifier {
     val bounds = morphAllocation?.localBounds()
     val clipShape = morphAllocation?.let { it.envelope.insetShapeFor(it.geometry()) } ?: shape
+    // 白边是轮廓光里独立的一层：日视图只要那道竖向柔光，不要卡片外圈发白，所以这里可关。
+    val borderModifier = if (borderEnabled) {
+        Modifier.border(
+            width = 1.dp,
+            brush = Brush.verticalGradient(
+                colorStops = arrayOf(
+                    0f to Color.White.copy(alpha = if (lightGlass) 0.28f else 0.16f),
+                    0.28f to Color.Transparent,
+                    (if (expanded) 0.80f else 0.94f) to Color.Transparent,
+                    1f to Color.White.copy(
+                        alpha = 0.20f * sqrt(intensity.coerceIn(0f, 1f))
+                    )
+                ),
+                startY = bounds?.top ?: 0f,
+                endY = bounds?.bottom ?: Float.POSITIVE_INFINITY
+            ),
+            shape = clipShape
+        )
+    } else {
+        Modifier
+    }
     return this
             .clip(clipShape)
             .drawBehind {
@@ -953,22 +975,7 @@ internal fun Modifier.verticalGlassAccent(
                     }
                 }
             }
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(
-                    colorStops = arrayOf(
-                        0f to Color.White.copy(alpha = if (lightGlass) 0.28f else 0.16f),
-                        0.28f to Color.Transparent,
-                        (if (expanded) 0.80f else 0.94f) to Color.Transparent,
-                        1f to Color.White.copy(
-                            alpha = 0.20f * sqrt(intensity.coerceIn(0f, 1f))
-                        )
-                    ),
-                    startY = bounds?.top ?: 0f,
-                    endY = bounds?.bottom ?: Float.POSITIVE_INFINITY
-                ),
-                shape = clipShape
-            )
+            .then(borderModifier)
 }
 
 @Composable
@@ -978,6 +985,7 @@ internal fun VerticalGlassAccentOverlay(
     lightGlass: Boolean,
     intensity: Float = 1f,
     expanded: Boolean = false,
+    borderEnabled: Boolean = true,
     modifier: Modifier = Modifier,
     morphAllocation: com.xiaomanjun.sleepdownschedule.glass.GlassMorphAllocation? = null
 ) {
@@ -988,6 +996,7 @@ internal fun VerticalGlassAccentOverlay(
             lightGlass = lightGlass,
             intensity = intensity,
             expanded = expanded,
+            borderEnabled = borderEnabled,
             morphAllocation = morphAllocation
         )
     )
@@ -1102,6 +1111,12 @@ fun CourseGlassCard(
     backdropSampleScale: Float = 1f,
     sampledShape: Shape? = null,
     expandedOutlineLight: Boolean = false,
+    /**
+     * Draws the bright 1dp edge ring that belongs to the outline light. Day-view course cards
+     * pass false and keep only the bottom-lit tint, so they carry no white edge; every other
+     * surface keeps the ring.
+     */
+    outlineLightBorder: Boolean = true,
     /**
      * Draws a uniform translucent white hairline just inside the card edge. It is an overlay
      * sibling of the content, so it survives all three material branches (real glass, gaussian
@@ -1414,6 +1429,7 @@ fun CourseGlassCard(
                         outlineLightEnabled = true
                     ),
                 expanded = expandedOutlineLight,
+                borderEnabled = outlineLightBorder,
                 morphAllocation = morphAllocation,
                 modifier = Modifier
                     .matchParentSize()
@@ -1429,22 +1445,26 @@ fun CourseGlassCard(
             Box(
                 Modifier
                     .matchParentSize()
-                    .drawBehind {                 // ← 先画描边（不被裁）
+                    .drawBehind {
                         val w = ceil(2.dp.toPx()).coerceIn(1f, size.minDimension / 2f)
                         if (size.minDimension < w * 2f) return@drawBehind
-                        val outline = shape.createOutline(
-                            size = size,          // 完整 size
-                            layoutDirection = layoutDirection,
-                            density = this
-                        )
-                        drawOutline(
-                            outline = outline,
-                            color = Color(0xE8FFFFFF),
-                            alpha = 0.6f,
-                            style = Stroke(width = w)
-                        )
+                        // 整条描边必须落在卡内：周视图静态卡的祖先节点带 clipToBounds，居中画
+                        // 时卡外那半边会被矩形切掉，只剩直边的半条、圆角却是满宽，看着粗细不均。
+                        // 拖动浮卡没有那层裁切，所以同一段代码在两张卡上的观感曾经不一样。
+                        translate(w / 2f, w / 2f) {
+                            drawOutline(
+                                outline = shape.createOutline(
+                                    size = Size(size.width - w, size.height - w),
+                                    layoutDirection = layoutDirection,
+                                    density = this
+                                ),
+                                color = Color(0xE8FFFFFF),
+                                alpha = 0.6f,
+                                style = Stroke(width = w)
+                            )
+                        }
                     }
-                    .clip(shape)                  // ← 后裁，只裁内容
+                    .clip(shape)
             )
         }
         if (pressed) {

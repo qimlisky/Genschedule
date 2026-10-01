@@ -2114,6 +2114,8 @@ fun CourseCard(course: CourseEntity, periods: List<PeriodEntity>, showTime: Bool
         modifier = sharedModifier.then(entranceModifier),
         shape = RoundedRectangle(24.dp),
         expandedOutlineLight = true,
+        // 主界面每日课程的卡片不要那道白边，只保留轮廓光的底部柔光。
+        outlineLightBorder = false,
         onClick = if (onClick != null) ({ onClick(ownBounds) }) else null
     ) {
         DayCourseCardTextContent(

@@ -19,3 +19,11 @@ APK：`app/build/outputs/apk/github/release/app-github-release.apk`，2026-09-08
 放在 `content()` 的兄弟位置是为了让真玻璃、高斯模糊、纯色降级三个材质分支都不需要知道自己被描了边，符合设计系统「降级只替换材质，不改变圆角、布局」。内缩而非居中描边是必须的：周视图卡片间距只有 4dp，居中描边会把半个描边画到邻卡上。alpha 复用现有 `tokens.borderAlpha`（深色 0.24、浅色 ×0.75 = 0.18），与桌面小组件 `WidgetBackgroundRenderer` 的白边基线一致，不新造魔数。该参数默认 `false`，因此日视图、快捷菜单、课程管理与编辑器浮层逐像素不变，只有主页周视图的 4 处调用（含长按拖起的浮卡）传 `true`。
 
 本轮的验证边界：只对改动文件跑了 kotlinc 语法检查（0 条语法错误，其余为无 classpath 导致的引用解析级联）与 `git diff` 复核，**没有**执行 `compileGithubReleaseKotlin` / `assembleGithubRelease`，也**没有**实机截图、帧采集或安装。绘制成本与是否掉帧尚未实测；新增了一层与卡片同尺寸的覆盖层，理论上只多一次描边绘制（非填充、非离屏、无 Shader）。实机验收项见 PR/报告。
+
+## 后续变更（2026-10-01）：描边改回内缩，笔宽与 alpha 固定
+
+`f787e1d`（同日的提交）把这段描边从内缩改成居中（`createOutline(size = size)`），笔宽 1dp→2dp，并把 `.clip(shape)` 挪到 `drawBehind` 之后，注释写作「先画描边（不被裁）」。居中的后果是 2dp 里有 1dp 落在卡片**外面**：拖动浮卡没有祖先裁切，显示完整 2dp；而周视图静态卡的祖先节点带 `WeekScheduleUi.kt` 的 `clipToBounds()`（矩形裁切），落在卡外的半边被切掉，四条直边只剩半条、四个圆角仍是满宽。同一段代码在两类卡上观感因此不一致：静态卡那条粗细不均、发虚，浮卡那条干净完整。
+
+修复即回到本文档原本的「内缩半个描边宽」：`translate(w / 2f, w / 2f)` + `createOutline(size = Size(size.width - w, size.height - w))`。笔宽与 alpha 保留 `f787e1d` 之后的 2dp / 0.6f（用户明确要更粗更亮的白边），不退回 1dp / `tokens.borderAlpha`。整条落在卡内后，矩形与形状裁切都切不到它，四处 `cardOutline = true`（周视图静态卡、长按拖起的浮卡、两张冲突卡）呈现同一条线。
+
+本轮的验证边界：只对 `GlassUi.kt` 单文件跑了 kotlinc 解析检查（无 classpath，输出全是 `Unresolved reference` 级联，无语法错误）与 `git diff` 复核，**没有**执行 `compileGithubReleaseKotlin` / `assembleGithubRelease`，也**没有**实机截图。裁切机制是按代码路径推导的（`WeekScheduleUi.kt` 静态卡的祖先 `clipToBounds`），尚未用实机像素复核。
