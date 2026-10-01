@@ -97,7 +97,7 @@ com/xiaomanjun/sleepdownschedule/
 | 根包入口 | 实现位置 |
 | --- | --- |
 | `SettingsDetailActivity`、`EduSchoolSelectActivity`、`EduImportActivity` | `app.ui` 中对应 `*Host` |
-| `ScheduleManagerActivity` | `feature.schedule.manager.ScheduleManagerActivityHost` |
+| `ScheduleManagerActivity` | `feature.schedule.manager.ScheduleManagerActivityHost`。当前全仓没有任何 Kotlin 代码启动它，用户不可达；其中的「自定义」按钮与首页 Picker 的同名按钮无关，不属于本轮废弃范围。保留 FQCN 与实现仅为兼容 Manifest 契约，不要因为“无入口”而删除 |
 | AI 历史、详情与进度 Activity | `feature.importing.history` / `feature.importing.progress` 中对应 `*Host` |
 | 四个扩展 Widget Provider | `feature.widget.providers` 中对应 `*Host` |
 | `DayAgentForegroundService` | `feature.agent.background.DayAgentForegroundServiceHost` |

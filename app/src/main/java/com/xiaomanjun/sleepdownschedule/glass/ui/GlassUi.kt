@@ -10,6 +10,7 @@ import com.xiaomanjun.sleepdownschedule.feature.home.day.*
 import com.xiaomanjun.sleepdownschedule.core.performance.LocalGlassQuality
 
 import android.os.Build
+import android.view.animation.AlphaAnimation
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -34,12 +35,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+//import androidx.compose.ui.graphics.drawscope.drawOutline
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -63,6 +69,7 @@ import com.xiaomanjun.sleepdownschedule.glass.referenceLensSampleScale
 import com.xiaomanjun.sleepdownschedule.glass.rememberGlassSurfaceDescriptor
 import com.xiaomanjun.sleepdownschedule.glass.sampledBackdropOnly
 import com.xiaomanjun.sleepdownschedule.glass.sleepDownGlassSurface
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -77,8 +84,52 @@ val DefaultCourseCardPalette = listOf(
     0xFF4DD0E1L
 )
 
+/**
+ * 写死的「彩色」课程卡片色表 —— **你要改的就是这里**。
+ *
+ * 改这个 list 就是改彩色模式下卡片的背景色：`0xAARRGGBB` 的 16 进制 Long，一行一个。
+ * 加减行数都可以，改完直接重新编译即可，不需要动别的代码。
+ *
+ * 行为约定：
+ * - 色值**原样上屏**，不做饱和度/明度柔化，也不会因为撞色被挪色相；
+ * - **先把色表用满，再开始重复**：按课程创建顺序发放，色表里每个颜色都会被用到之后，
+ *   才会出现第二个课程用同一个颜色；
+ * - 发放时优先保证**同一天上下相邻的卡不同色**（颜色不够时这一点会让位给上面两条）；
+ * - **新增课程不会改变已有课程的颜色**——新课程排在最后，只能拿还没被用过的颜色；
+ *   删掉课程则会释放它的颜色，创建时间比它晚的卡片可能换色；
+ * - **填几个就是几个**：色表长度由这个 list 本身决定，代码里任何地方都不写死个数，也不受
+ *   [encodeCourseCardPalette] 的 8 个上限约束（那个上限只作用于存进数据库的 courseCardPalette 字符串）；
+ * - 重复的色值会被去重（等价于少写一个）；
+ * - 色表个数少于「同一天上下相邻的卡数」时，必然有相邻卡同色（抽屉原理，不是 bug）。建议 ≥ 你单日最多课程数；
+ * - **只作用于「彩色 + 无壁纸」**：设了壁纸时仍走壁纸取色，纯色/渐变不受影响。
+ */
+val PersonalCourseCardPalette = listOf(
+    0xFF49A078L,//深绿色
+    0xFF7E8287L,//灰色
+    0xFFFBB7C0L,//浅粉色
+    0xFFD17D66L,//陶土色
+    0xFFC1A9F4L,//浅紫色
+    0xFFE6B475L,//杏色
+    0xFFED7C98L,//粉红色
+    0xFFE98C75L,//珊瑚橘
+    0xFF67CBCCL,//青绿色
+//0xFFBEA9F8L,//浅紫色
+    0xFFA5C882L,//浅绿色
+    0xFF86ADFAL,//浅蓝色
+)
+
 val LocalCourseCardPalette = compositionLocalOf { DefaultCourseCardPalette }
 val LocalCourseCardColorAssignments = compositionLocalOf<Map<String, Long>> { emptyMap() }
+
+/**
+ * Palette the per-course colour pickers offer, i.e. exactly the colours the cards can take.
+ *
+ * Sourced from [LocalCourseCardPalette] so a picker never offers a swatch the schedule will not
+ * actually use.
+ */
+@Composable
+internal fun courseCardPickerPalette(): List<Long> =
+    LocalCourseCardPalette.current.ifEmpty { DefaultCourseCardPalette }
 
 fun encodeCourseCardPalette(colors: List<Long>): String = colors.asSequence()
     .map { it and 0xFFFFFFFFL }
@@ -107,6 +158,19 @@ fun courseCardUsesAssignments(config: ScheduleConfigEntity): Boolean =
 fun courseCardAllowsCustomOverrides(config: ScheduleConfigEntity): Boolean =
     config.courseCardColorMode == CourseCardColorMode.COLORFUL
 
+/**
+ * True when card colours should come from [PersonalCourseCardPalette] verbatim.
+ *
+ * Deliberately narrow, matching the agreed scope: COLORFUL only, and only without a wallpaper —
+ * cards over wallpaper are translucent glass sampled from busy imagery, where the written-in
+ * palette would fight the backdrop. SOLID keeps its single/preset colour, GRADIENT keeps its one
+ * light-to-dark family, and an explicit wallpaper path keeps sampling the wallpaper.
+ *
+ * Cheap enough to be read once per config change rather than once per card.
+ */
+fun courseCardUsesPersonalPalette(config: ScheduleConfigEntity): Boolean =
+    config.courseCardColorMode == CourseCardColorMode.COLORFUL && !config.hasAnyWallpaper()
+
 fun resolvedCourseCardPalette(
     config: ScheduleConfigEntity,
     wallpaperColors: List<Long>
@@ -120,11 +184,18 @@ fun resolvedCourseCardPalette(
         // 无壁纸纯色卡片：默认使用多彩预制色而非单一浅蓝
         DefaultCourseCardPalette
     }
-    CourseCardColorMode.COLORFUL -> decodeCourseCardPalette(config.courseCardPalette)
-        .ifEmpty {
-            if (config.hasAnyWallpaper()) wallpaperColors else DefaultCourseCardPalette
-        }
-        .ifEmpty { DefaultCourseCardPalette }
+    // The written-in palette wins over everything else in COLORFUL without a wallpaper, including
+    // an explicit palette saved from the colour picker: otherwise a single tap in that dialog would
+    // silently take the hardcoded colours out of play.
+    CourseCardColorMode.COLORFUL -> if (courseCardUsesPersonalPalette(config)) {
+        PersonalCourseCardPalette
+    } else {
+        decodeCourseCardPalette(config.courseCardPalette)
+            .ifEmpty {
+                if (config.hasAnyWallpaper()) wallpaperColors else DefaultCourseCardPalette
+            }
+            .ifEmpty { DefaultCourseCardPalette }
+    }
 }
 
 fun courseCardColorKey(course: CourseEntity): String =
@@ -149,9 +220,9 @@ internal fun courseCardAppearanceDistance(first: Long, second: Long): Double {
             (value * 1.15f) * (value * 1.15f)
     ).toDouble()
 }
-private data class CourseCardHsv(val hue: Float, val saturation: Float, val value: Float)
+internal data class CourseCardHsv(val hue: Float, val saturation: Float, val value: Float)
 
-private fun courseCardHsv(argb: Long): CourseCardHsv {
+internal fun courseCardHsv(argb: Long): CourseCardHsv {
     val red = ((argb shr 16) and 0xFF).toFloat() / 255f
     val green = ((argb shr 8) and 0xFF).toFloat() / 255f
     val blue = (argb and 0xFF).toFloat() / 255f
@@ -215,10 +286,56 @@ internal fun courseCardPerceptualDistance(first: Long, second: Long): Double {
     )
 }
 
+/** Appearance distance two vertically adjacent cards must keep; matches the existing test bar. */
+private const val AdjacentCardCollisionDistance = 0.20
+
+/**
+ * Hands out colours from a fixed written-in palette, using only the palette's own entries.
+ *
+ * Allocation walks the courses in **creation order** and prefers an entry that has not been handed
+ * out yet, so the palette is used up in full before any colour repeats. Only once every entry is in
+ * play does a card accept a repeat, and even then it still refuses to sit next to a card wearing a
+ * colour it cannot be told apart from.
+ *
+ * Creation order is what makes that safe to do. A newly added course has the newest id, so it is
+ * always allocated last and can never take an entry out from under a card that is already on screen:
+ * **adding a course never recolours anything**, unconditionally, not merely for courses that happen
+ * to be far apart.
+ *
+ * Removing a course is the exception. It frees an entry, and because the palette is walked in order,
+ * every card created after it may shift onto a different entry outright rather than settling back by
+ * a few degrees. That reshuffle is the accepted cost of "one written-in palette, distributed
+ * automatically"; the per-course identity colour scheme this replaces could bound the shift only
+ * because it derived each colour from the name alone.
+ */
+private fun buildExactPaletteAssignments(
+    keys: List<String>,
+    adjacentKeys: Map<String, Set<String>>,
+    orderKeys: List<String>,
+    bases: List<Long>
+): Map<String, Long> {
+    val remaining = bases.toMutableList()
+    val assigned = HashMap<String, Long>(keys.size)
+    orderKeys.forEach { key ->
+        val placedNeighbours = adjacentKeys[key].orEmpty().mapNotNull(assigned::get)
+        fun distinguishable(candidate: Long) = placedNeighbours.none {
+            courseCardAppearanceDistance(it, candidate) < AdjacentCardCollisionDistance
+        }
+        // 先发没出现过的颜色，色表用满之后才开始复用；两者都优先保证相邻不同色。
+        val color = remaining.firstOrNull { distinguishable(it) }
+            ?: bases.firstOrNull { distinguishable(it) }
+            ?: bases.first()
+        remaining.remove(color)
+        assigned[key] = color
+    }
+    return keys.associateWith { assigned.getValue(it) }
+}
+
 fun buildCourseCardColorAssignments(
     courses: List<CourseEntity>,
     representativeColors: List<Long>,
-    tonalFamily: Boolean = representativeColors.size == 1
+    tonalFamily: Boolean = representativeColors.size == 1,
+    exactPalette: Boolean = false
 ): Map<String, Long> {
     val keys = courses.map(::courseCardColorKey).distinct().sorted()
     val coursesByKey = courses.groupBy(::courseCardColorKey)
@@ -242,6 +359,20 @@ fun buildCourseCardColorAssignments(
         keys.asSequence().filter { it != key && areCardsLikelyAdjacent(key, it) }.toSet()
     }
     if (keys.isEmpty()) return emptyMap()
+    // 写死色表：原样使用，跳过下面的柔化，也跳过整个候选生成器。
+    if (exactPalette) {
+        val writtenIn = representativeColors.ifEmpty { PersonalCourseCardPalette }
+            .distinct()
+            .ifEmpty { DefaultCourseCardPalette }
+        // 按课程创建顺序发放（同名的课程取最早的那个 id），这样新加的课程永远排在最后，
+        // 不会抢走已经在屏幕上的课程的颜色。
+        val orderKeys = keys.sortedWith(
+            compareBy<String> {
+                coursesByKey[it].orEmpty().minOfOrNull { course -> course.id } ?: Long.MAX_VALUE
+            }.thenBy { it }
+        )
+        return buildExactPaletteAssignments(keys, adjacentKeys, orderKeys, writtenIn)
+    }
     val bases = representativeColors.ifEmpty { DefaultCourseCardPalette }
         .map { color ->
             val hsv = courseCardHsv(color)
@@ -501,6 +632,7 @@ fun appUsesDarkTheme(config: ScheduleConfigEntity): Boolean {
 }
 
 @Composable
+//没有壁纸时,深色->false,浅色->true
 fun glassUsesLightStyle(config: ScheduleConfigEntity): Boolean {
     if (config.wallpaperUri.isNullOrBlank()) return !appUsesDarkTheme(config)
     return when {
@@ -970,6 +1102,13 @@ fun CourseGlassCard(
     backdropSampleScale: Float = 1f,
     sampledShape: Shape? = null,
     expandedOutlineLight: Boolean = false,
+    /**
+     * Draws a uniform translucent white hairline just inside the card edge. It is an overlay
+     * sibling of the content, so it survives all three material branches (real glass, gaussian
+     * blur, flat colour fallback) without any of them having to know about it. Callers opt in
+     * per surface; it is not a global restyle.
+     */
+    cardOutline: Boolean = false,
     morphAllocation: com.xiaomanjun.sleepdownschedule.glass.GlassMorphAllocation? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
@@ -1006,6 +1145,9 @@ fun CourseGlassCard(
     val hasWallpaper = config.hasAnyWallpaper()
     val tokens = GlassTokens.courseCard(blurOverride ?: config.courseCardBlur)
     val lightGlass = glassUsesLightStyle(config)
+    // Reuses the material's own border token instead of inventing a new constant. The light-glass
+    // damping matches the desktop widget's white hairline (0.24 dark / 0.18 light).
+    val cardOutlineAlpha = tokens.borderAlpha * if (lightGlass) 0.75f else 1f
     val liveLiquidBlur = blurOverride ?: previewState?.cardBlur ?: config.courseCardBlur
     val liveRefractionStrength = previewState?.cardRefractionStrength
         ?: config.courseCardRefractionStrength
@@ -1279,6 +1421,32 @@ fun CourseGlassCard(
             )
         }
         content()
+        // The hairline is drawn on an outline inset by half the stroke so the whole stroke lands
+        // inside the card. A centred border would spill half of itself into the 4dp gutter the
+        // week grid leaves between cards.
+        //管理课程卡片的边线
+        if (cardOutline) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .drawBehind {                 // ← 先画描边（不被裁）
+                        val w = ceil(2.dp.toPx()).coerceIn(1f, size.minDimension / 2f)
+                        if (size.minDimension < w * 2f) return@drawBehind
+                        val outline = shape.createOutline(
+                            size = size,          // 完整 size
+                            layoutDirection = layoutDirection,
+                            density = this
+                        )
+                        drawOutline(
+                            outline = outline,
+                            color = Color(0xE8FFFFFF),
+                            alpha = 0.6f,
+                            style = Stroke(width = w)
+                        )
+                    }
+                    .clip(shape)                  // ← 后裁，只裁内容
+            )
+        }
         if (pressed) {
             Box(
                 Modifier

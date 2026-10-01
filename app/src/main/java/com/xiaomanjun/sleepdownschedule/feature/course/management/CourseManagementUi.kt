@@ -60,6 +60,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -154,7 +155,8 @@ internal fun CourseManagementColorProvider(
     val adaptiveGlass = rememberFallbackAdaptiveGlassState(state.config)
     val wallpaperImages by rememberHomeWallpaperImages(state.config)
     val colorSignature = remember(state.config.id, state.courses) {
-        state.courses.map(::courseCardColorKey).distinct().sorted()
+        // Creation order, matching the order the palette is handed out in — see ScheduleAppUi.
+        state.courses.sortedBy { it.id }.map(::courseCardColorKey).distinct()
     }
     val coursePalette = remember(
         state.config.courseCardColorMode,
@@ -164,20 +166,26 @@ internal fun CourseManagementColorProvider(
     ) {
         resolvedCourseCardPalette(state.config, wallpaperImages.representativeColors)
     }
+    // Part of the key because it can flip on the wallpaper state alone, without the mode or the
+    // resolved palette changing.
+    val usesPersonalPalette = courseCardUsesPersonalPalette(state.config)
     val assignments = remember(
         state.config.id,
         state.config.courseCardColorMode,
         state.config.cardColorArgb,
         state.config.courseCardPalette,
+        usesPersonalPalette,
         colorSignature,
         coursePalette
     ) {
         buildCourseCardColorAssignments(
             state.courses,
             coursePalette,
-            tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT
+            tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT,
+            exactPalette = usesPersonalPalette
         )
     }
+    // The management screen must show the same colours as the home week view.
     CompositionLocalProvider(
         LocalAdaptiveGlass provides adaptiveGlass,
         LocalCourseCardPalette provides coursePalette,
@@ -477,7 +485,8 @@ internal fun HomeMenuActivitySourceFallback(
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        listOf("日视图 / 周视图", "添加单节课", "课程管理", "手动导入课表", "教务系统导入", "课表设置")
+        // Row list of the real menu: the view-mode row, then the actions in order.
+        (listOf("日视图 / 周视图") + HomeAddMenuTitles)
             .forEachIndexed { index, label ->
                 Row(
                     Modifier.fillMaxWidth().height(42.dp),
@@ -897,14 +906,13 @@ private fun CourseIdentityCard(
                 modifier = Modifier.fillMaxWidth(),
                 insideMargin = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
             )
-            val palette = LocalCourseCardPalette.current.ifEmpty { DefaultCourseCardPalette }
-            val visiblePalette = palette.take(4)
-            Row(
+            val palette = courseCardPickerPalette()
+            LazyRow(
                 modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                visiblePalette.forEach { argb ->
+                items(palette) { argb ->
                     val selected = selectedColor == argb
                     Box(
                         Modifier
@@ -938,12 +946,14 @@ private fun CourseIdentityCard(
                         }
                     }
                 }
-                CourseColorPaletteButton(
-                    backdrop = backdrop,
-                    selected = selectedColor != null && selectedColor !in visiblePalette,
-                    onClick = onOpenColorPicker,
-                    size = 34.dp
-                )
+                item {
+                    CourseColorPaletteButton(
+                        backdrop = backdrop,
+                        selected = selectedColor != null && selectedColor !in palette,
+                        onClick = onOpenColorPicker,
+                        size = 34.dp
+                    )
+                }
             }
         }
     }

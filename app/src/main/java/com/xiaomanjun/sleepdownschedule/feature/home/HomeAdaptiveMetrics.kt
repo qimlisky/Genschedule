@@ -23,6 +23,13 @@ internal const val MinimumWeekCardHeightScale = 0.72f
 internal const val MaximumWeekCardHeightScale = 1.45f
 
 /*
+ * The phone week view's corner radius. The radius slider sits at progress 0.5 and that is the
+ * radius a phone shows, so this single value is the phone silhouette. Tablet grids scale from
+ * their own base and keep their previous proportions.
+ */
+internal const val PhoneWeekCardCornerRadiusDp = 6f
+
+/*
  * The expanded week rail renders one 15sp period number plus two 11sp time lines. Its
  * current-period badge adds 1dp above and below the number. When a short window cannot fit that
  * complete stack, rendering switches to the compact number-only contract instead of clipping or
@@ -354,9 +361,9 @@ internal fun HomeAdaptiveMetrics.contentRectPx(rootSize: IntSize, density: Float
 }
 
 /**
- * Keeps the phone week-card silhouette unchanged while allowing wide tablet grids to use a
- * slightly softer continuous corner. The radius is bounded by the card's shorter side so short
- * one-period cards never collapse into pills.
+ * Keeps the phone week-card silhouette fixed while allowing wide tablet grids to use a slightly
+ * softer continuous corner. The radius is bounded by the card's shorter side so short one-period
+ * cards never collapse into pills.
  */
 internal fun adaptiveWeekCardCornerRadius(
     cardWidth: Dp,
@@ -368,7 +375,8 @@ internal fun adaptiveWeekCardCornerRadius(
     val shortWindowEdge = min(windowWidth.value, windowHeight.value)
     val shortCardEdge = min(cardWidth.value, cardHeight.value).coerceAtLeast(1f)
     val baseRadius = if (shortWindowEdge < 600f) {
-        8f
+        // The day view has its own hard-coded corner and does not follow this value.
+        PhoneWeekCardCornerRadiusDp
     } else {
         val resolutionScale = ((shortWindowEdge - 600f) / 600f).coerceIn(0f, 1f)
         val oldMaximum = 14f + 2f * resolutionScale

@@ -361,7 +361,7 @@ internal fun SinglePillWeekScheduleScreen(
     // boundless mode the rail is narrowed so the period/time header shifts left, the left
     // clearance to the grid shrinks, and the freed width flows into every course column equally.
     val boundless = style == WeekViewStyle.BOUNDLESS
-    val rowHeaderWidth = if (boundless) BoundlessWeekRowHeaderWidth else 56.dp
+    val rowHeaderWidth = if (boundless) BoundlessWeekRowHeaderWidth else 38.dp //56.dp
     val today = LocalDate.now()
     val weekStart = scheduleWeekStartDate(state.config, displayWeek, today)
     val now = LocalTime.now()
@@ -693,7 +693,7 @@ internal fun SinglePillWeekScheduleScreen(
                                     val isCurrent = currentPeriod?.periodIndex == period.periodIndex
                                     Box(
                                         modifier = if (isCurrent) Modifier
-                                            .background(ComposeColor(0xFF0A84FF), RoundedRectangle(5.dp))
+                                            .background(ComposeColor(0xFF0A84FF), RoundedRectangle(2.dp))
                                             .padding(horizontal = 4.dp, vertical = 1.dp)
                                         else Modifier,
                                         contentAlignment = Alignment.Center
@@ -1083,6 +1083,7 @@ private fun WeekEditOverlayHost(
                 course = req.course,
                 modifier = Modifier.fillMaxSize(),
                 shape = cardShape,
+                cardOutline = true,
                 onClick = null
             ) {
                 WeekCourseOverlayCardContent(req.course, config)
@@ -2939,10 +2940,18 @@ fun WeekCourseBlock(
     val hasLocation = locationText.isNotBlank()
     val hasTeacher = !course.teacher.isNullOrBlank()
     val resolvedCardColor = if (courseCardUsesAssignments(config)) courseCardBaseColor(config, course) else cardColor
+//    val courseTextColor =
+//        if (backdrop != null && config.courseCardGlassEnabled) LocalAdaptiveGlass.current.contentColor
+//        else if (config.courseCardGlassEnabled) readableOn(resolvedCardColor)
+//        else glassForegroundColor(config)
     val courseTextColor =
-        if (backdrop != null && config.courseCardGlassEnabled) LocalAdaptiveGlass.current.contentColor
-        else if (config.courseCardGlassEnabled) readableOn(resolvedCardColor)
-        else glassForegroundColor(config)
+        if (backdrop != null && config.courseCardGlassEnabled && config.hasAnyWallpaper())
+            LocalAdaptiveGlass.current.contentColor
+        else if (config.courseCardGlassEnabled && config.hasAnyWallpaper())
+            readableOn(resolvedCardColor)
+        else if (appUsesDarkTheme(config)) ComposeColor.Black   // 深色 → 黑
+        else ComposeColor.White                                  // 浅色 → 白
+
     val density = LocalDensity.current
     val tailDirection = if (weekMotionOutgoing) -weekMotionDirection else weekMotionDirection
     val tailBase = with(density) { (32.dp + ((periodIndex - 1).coerceAtLeast(0).coerceAtMost(9) * 9f).dp + (stackIndex * 16f).dp).toPx() }
@@ -3290,6 +3299,7 @@ fun WeekCourseBlock(
                             course = underlyingCourse,
                             modifier = Modifier.fillMaxSize(),
                             shape = cardShape,
+                            cardOutline = true,
                             onClick = null
                         ) {
                             WeekCourseOverlayCardContent(underlyingCourse, config)
@@ -3341,6 +3351,7 @@ fun WeekCourseBlock(
                         course = target,
                         modifier = Modifier.fillMaxSize(),
                         shape = cardShape,
+                        cardOutline = true,
                         onClick = null
                     ) {
                         WeekCourseOverlayCardContent(target, config)
@@ -3392,6 +3403,7 @@ fun WeekCourseBlock(
                     .fillMaxWidth()
                     .height(displayedHeight),
                 shape = cardShape,
+                cardOutline = true,
                 mountMaterial = occlusionMaterialMounted,
                 // Pager owns lifetime; scrolling never toggles a card's material nodes.
                 viewportMaterialVisible = true,
@@ -3419,12 +3431,14 @@ fun WeekCourseBlock(
             val courseFontScale = ((previewFontScale ?: config.courseCardFontScale) * tabletFontBoost)
                 .coerceIn(0.80f, 1.35f)
             fun scaledCourseWeekText(value: TextUnit): TextUnit = scaledWeekText((value.value * courseFontScale).sp, fontScaleCompensation)
-            val nameFont = scaledCourseWeekText(if (tiny) 8.8.sp else if (compact) 9.7.sp else 10.7.sp)
-            val nameLineHeight = scaledCourseWeekText(if (tiny) 8.2.sp else if (compact) 9.1.sp else 10.0.sp)
-            val locationFont = scaledCourseWeekText(if (tiny) 8.1.sp else if (compact) 8.7.sp else 9.5.sp)
-            val locationLineHeight = scaledCourseWeekText(if (tiny) 8.0.sp else if (compact) 8.6.sp else 9.3.sp)
+
+            val nameFont = scaledCourseWeekText(if (tiny) 9.sp else if (compact) 10.sp else 12.5.sp)
+            val nameLineHeight = scaledCourseWeekText(if (tiny) 8.2.sp else if (compact) 9.1.sp else 12.sp)
+            val locationFont = scaledCourseWeekText(if (tiny) 9.sp else if (compact) 10.sp else 12.5.sp)
+            val locationLineHeight = scaledCourseWeekText(if (tiny) 8.0.sp else if (compact) 8.8.sp else 12.sp)
             val teacherFont = scaledCourseWeekText(8.4.sp)
             val teacherLineHeight = scaledCourseWeekText(7.9.sp)
+
             val contentWidthPx = with(density) { (cardLayoutWidth - horizontalPadding * 2f).coerceAtLeast(24.dp).toPx() }
             val availableTextPx = with(density) { (displayedHeight - verticalPadding * 2f).coerceAtLeast(0.dp).toPx() }
 
@@ -3498,56 +3512,52 @@ fun WeekCourseBlock(
                 0.dp
             }
             val centerReserve = maxOf(locationReserve, teacherReserve) + 1.dp
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = horizontalPadding, vertical = verticalPadding)
-            ) {
-                if (hasLocation && locationLines > 0) {
-                    Text(
-                        locationText,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .fillMaxWidth(),
-                        fontSize = locationFont,
-                        lineHeight = locationLineHeight,
-                        fontWeight = FontWeight.Medium,
-                        color = courseTextColor.copy(alpha = 0.78f),
-                        maxLines = locationLines,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
-                    )
-                }
-                Text(
-                    course.name,
+                Column(
                     modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxWidth()
-                        .padding(vertical = centerReserve),
-                    fontSize = nameFont,
-                    lineHeight = nameLineHeight,
-                    fontWeight = FontWeight.SemiBold,
-                    color = courseTextColor,
-                    maxLines = nameLines,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
-                if (canShowTeacher) {
+                        .fillMaxSize()
+                        //.padding(horizontal = horizontalPadding, vertical = verticalPadding)
+                        .padding(top = 4.dp, start = 1.dp, end = 1.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Top
+                ) {
                     Text(
-                        course.teacher,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth(),
-                        fontSize = teacherFont,
-                        lineHeight = teacherLineHeight,
-                        fontWeight = FontWeight.Normal,
-                        color = courseTextColor.copy(alpha = 0.58f),
-                        maxLines = 1,
+                        course.name,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = nameFont,
+                        lineHeight = nameLineHeight,
+                        fontWeight = FontWeight.SemiBold,
+                        color = courseTextColor,
+                        maxLines = nameLines,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center
                     )
+                    if (hasLocation && locationLines > 0) {
+                        Text(
+                            "@$locationText",
+                            modifier = Modifier.fillMaxWidth(),
+                            fontSize = locationFont,
+                            lineHeight = locationLineHeight,
+                            fontWeight = FontWeight.SemiBold,
+                            color = courseTextColor.copy(alpha = 0.90f),
+                            maxLines = locationLines,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Start
+                        )
+                    }
+                    if (canShowTeacher) {
+                        Text(
+                            course.teacher,
+                            modifier = Modifier.fillMaxWidth(),
+                            fontSize = teacherFont,
+                            lineHeight = teacherLineHeight,
+                            fontWeight = FontWeight.Normal,
+                            color = courseTextColor.copy(alpha = 0.58f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
-            }
             }
             }
             if (conflictWarning && !editMode && !customTimeLocked) {

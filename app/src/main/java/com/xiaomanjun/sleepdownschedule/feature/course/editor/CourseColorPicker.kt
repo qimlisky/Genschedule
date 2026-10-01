@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
@@ -38,9 +39,8 @@ import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.QuickSheetLiquidAction
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignTokens
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownPickerDialog
-import com.xiaomanjun.sleepdownschedule.glass.ui.DefaultCourseCardPalette
-import com.xiaomanjun.sleepdownschedule.glass.ui.LocalCourseCardPalette
 import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
+import com.xiaomanjun.sleepdownschedule.glass.ui.courseCardPickerPalette
 
 @Composable
 internal fun CourseColorPicker(
@@ -54,7 +54,7 @@ internal fun CourseColorPicker(
     onDismissFinished: () -> Unit,
     onColorSelected: (Long?) -> Unit
 ) {
-    val palette = LocalCourseCardPalette.current.ifEmpty { DefaultCourseCardPalette }
+    val palette = courseCardPickerPalette()
     var pendingColor by remember(show, selectedColorArgb) { mutableStateOf(selectedColorArgb) }
     var paletteAnchorVersion by remember(show, selectedColorArgb, automaticColorArgb) { mutableIntStateOf(0) }
     val foreground = if (appUsesDarkTheme(config)) Color.White else Color(0xFF111111)
@@ -165,15 +165,21 @@ internal fun CourseColorPaletteButton(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: androidx.compose.ui.unit.Dp = 34.dp
+    size: androidx.compose.ui.unit.Dp = 34.dp,
+    enabled: Boolean = true
 ) {
     val surfaceColor = if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.90f)
     val iconColor = if (selected) Color.White else Color(0xFF1A1A1A)
+    // A disabled swatch button still sits in the row rather than disappearing, so the row keeps its
+    // rhythm and the control stays discoverable once the wallpaper puts it back in play.
+    val target = modifier.size(size).alpha(if (enabled) 1f else 0.38f)
+    val onTap = if (enabled) onClick else ({})
     if (backdrop != null) {
         LiquidButton(
-            onClick = onClick,
+            onClick = onTap,
             backdrop = backdrop,
-            modifier = modifier.size(size),
+            modifier = target,
+            isInteractive = enabled,
             height = size,
             contentPadding = PaddingValues(0.dp),
             surfaceColor = surfaceColor,
@@ -193,10 +199,11 @@ internal fun CourseColorPaletteButton(
         }
     } else {
         Surface(
-            modifier = modifier.size(size),
+            modifier = target,
             shape = Capsule(),
             color = surfaceColor,
-            onClick = onClick
+            onClick = onTap,
+            enabled = enabled
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(

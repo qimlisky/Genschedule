@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
@@ -156,6 +157,8 @@ fun LiquidToggle(
         modifier,
         contentAlignment = Alignment.CenterStart
     ) {
+        //开关圆形滑块底部轨道长度
+        val switchBottomWith = 54f
         Box(
             Modifier
                 .glassBackdropProducer(trackBackdrop)
@@ -164,7 +167,7 @@ fun LiquidToggle(
                     val fraction = dampedDragAnimation.value
                     drawRect(lerp(trackColor, accentColor, fraction))
                 }
-                .size(64f.dp, 28f.dp)
+                .size(switchBottomWith.dp, 28f.dp)//64,28
         )
 
         Box(
@@ -235,11 +238,28 @@ fun LiquidToggle(
                         scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                     },
                     onDrawSurface = {
-                        val progress = dampedDragAnimation.pressProgress
-                        drawRect(Color.White.copy(alpha = 1f - progress))
+                        val progress = dampedDragAnimation.pressProgress   // 0f 没按，1f 按到底
+                        val fraction = dampedDragAnimation.value            // 0f~1f 开关状态
+                        val paddingPx = 2f.dp.toPx()
+
+                        // 圆形滑块半径 = 高度的一半 - 内边距（保证上下留白）
+                        val radius = size.height / 2f - paddingPx
+
+                        // 圆心 X：从左端内边距滑到右端内边距
+                        val centerX = lerp(
+                            start = paddingPx + radius,
+                            stop = size.width - paddingPx - radius,
+                            fraction = fraction
+                        )
+
+                        drawCircle(
+                            color = Color.White.copy(alpha = 1f - progress),
+                            radius = radius,
+                            center = Offset(centerX, size.height / 2f)
+                        )
                     }
                 )
-                .size(40f.dp, 24f.dp)
+                .size((switchBottomWith - 24).dp, 24f.dp)//40,24
         )
     }
 }

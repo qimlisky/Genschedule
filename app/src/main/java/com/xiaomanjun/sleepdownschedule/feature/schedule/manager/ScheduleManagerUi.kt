@@ -810,11 +810,20 @@ fun ScheduleHomeSnapshotPreview(
             }
         )
     }
-    val previewAssignments = remember(courses, previewPalette, config.courseCardColorMode) {
+    // Part of the key because it can flip on the wallpaper state alone, without the mode or the
+    // resolved palette changing.
+    val previewUsesPersonalPalette = courseCardUsesPersonalPalette(config)
+    val previewAssignments = remember(
+        courses,
+        previewPalette,
+        config.courseCardColorMode,
+        previewUsesPersonalPalette
+    ) {
         buildCourseCardColorAssignments(
             courses,
             previewPalette,
-            tonalFamily = config.courseCardColorMode == CourseCardColorMode.GRADIENT
+            tonalFamily = config.courseCardColorMode == CourseCardColorMode.GRADIENT,
+            exactPalette = previewUsesPersonalPalette
         )
     }
     Box(modifier = modifier.background(if (appUsesDarkTheme(config)) Color(0xFF050505) else Color.White)) {

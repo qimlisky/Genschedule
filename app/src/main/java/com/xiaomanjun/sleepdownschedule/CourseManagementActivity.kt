@@ -160,7 +160,7 @@ open class CourseManagementActivity : ComponentActivity() {
                                 sourceContent = {
                                     HomeMenuActivitySourceFallback(
                                         config = state.config,
-                                        highlightedRowIndex = 2
+                                        highlightedRowIndex = homeMenuRowIndex("课程管理")
                                     )
                                 }
                             ) { requestClose ->

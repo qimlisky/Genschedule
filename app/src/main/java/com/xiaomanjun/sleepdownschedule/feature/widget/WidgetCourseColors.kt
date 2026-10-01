@@ -31,6 +31,10 @@ internal object WidgetCourseColors {
             .sortedWith(compareBy<CourseEntity> { courseCardColorKey(it) }.thenBy { it.id })
             .fold(1) { result, course ->
                 31 * result + listOf(
+                    // Creation order decides the assignment, so the id has to be part of the key:
+                    // deleting a course and re-adding it under the same name and slots leaves every
+                    // other field identical while the order — and so the colours — change.
+                    course.id,
                     courseCardColorKey(course),
                     course.weekday,
                     course.periods,
@@ -69,7 +73,8 @@ internal object WidgetCourseColors {
         val resolved = buildCourseCardColorAssignments(
             state.courses,
             resolvedPalette,
-            tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT
+            tonalFamily = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT,
+            exactPalette = courseCardUsesPersonalPalette(state.config)
         )
             .mapValues { (_, color) -> color.toInt() }
         synchronized(cache) { cache[key] = resolved }
