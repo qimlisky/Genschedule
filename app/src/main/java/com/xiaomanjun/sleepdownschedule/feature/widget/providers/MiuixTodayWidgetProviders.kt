@@ -606,7 +606,7 @@ internal object MiuixTodayWidgetRenderer {
         )
         val courses = allCourses.take(metrics.maxCourses)
         val layout = when (variant) {
-            TodayWidgetVariant.LARGE -> R.layout.widget_today_courses_miuix_adaptive_v3
+            TodayWidgetVariant.LARGE -> R.layout.widget_today_courses_miuix_adaptive_v4
             TodayWidgetVariant.SQUARE -> R.layout.widget_today_courses_square_adaptive_v2
         }
         val dark = usesDarkTheme(context, state.config)
@@ -623,9 +623,12 @@ internal object MiuixTodayWidgetRenderer {
         return RemoteViews(context.packageName, layout).apply {
             if (variant == TodayWidgetVariant.LARGE) {
                 setImageViewResource(R.id.widget_app_icon, currentIconResId(context))
+                // 4×2 的头部放得下日期这一栏；2×2 的布局里没有这个 View，不能碰。
+                setTextViewText(R.id.widget_date, "${targetDate.monthValue}月${targetDate.dayOfMonth}日")
+                setWidgetTextSize(R.id.widget_date, typography.subtitleSp)
             }
             applyTheme(dark, variant)
-            applyCustomBackground(custom)
+            applyCustomBackground(variant, custom)
             applyCoursesWidgetLayout(context, variant, metrics)
             setWidgetTextSize(R.id.widget_title, typography.titleSp)
             setWidgetTextSize(R.id.widget_subtitle, typography.subtitleSp)
@@ -692,7 +695,10 @@ internal object MiuixTodayWidgetRenderer {
         }
     }
 
-    private fun RemoteViews.applyCustomBackground(custom: WidgetBackgroundResult?) {
+    private fun RemoteViews.applyCustomBackground(
+        variant: TodayWidgetVariant,
+        custom: WidgetBackgroundResult?
+    ) {
         if (custom == null) {
             setViewVisibility(R.id.widget_background_image, View.GONE)
             return
@@ -702,6 +708,9 @@ internal object MiuixTodayWidgetRenderer {
         setInt(R.id.widget_root, "setBackgroundColor", Color.TRANSPARENT)
         setTextColor(R.id.widget_title, custom.header)
         setTextColor(R.id.widget_subtitle, custom.headerSecondary)
+        if (variant == TodayWidgetVariant.LARGE) {
+            setTextColor(R.id.widget_date, custom.headerSecondary)
+        }
         setTextColor(R.id.widget_empty, custom.headerSecondary)
     }
 
@@ -927,6 +936,9 @@ internal object MiuixTodayWidgetRenderer {
         )
         setTextColor(R.id.widget_title, if (dark) Color.WHITE else Color.rgb(17, 17, 17))
         setTextColor(R.id.widget_subtitle, if (dark) Color.argb(170, 255, 255, 255) else Color.argb(150, 0, 0, 0))
+        if (variant == TodayWidgetVariant.LARGE) {
+            setTextColor(R.id.widget_date, if (dark) Color.argb(170, 255, 255, 255) else Color.argb(150, 0, 0, 0))
+        }
         setTextColor(R.id.widget_empty, if (dark) Color.argb(170, 255, 255, 255) else Color.argb(150, 0, 0, 0))
     }
 

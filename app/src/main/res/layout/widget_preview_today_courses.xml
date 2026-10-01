@@ -14,6 +14,10 @@
 
     色条（widget_course_indicator_1/2）的运行时颜色是逐课分配的（WidgetCourseColors），
     静态布局给不出来，所以沿用 widget_picker_preview_courses_large.png 里那两条色。
+
+    头部四栏：标题（今日课程 · 周三）、日期、周次、App 图标。周次那栏 weight = 1 吃掉剩余
+    宽度，所以图标被顶到最右端；对应 widget_today_courses_miuix.xml 的
+    widget_title / widget_date / widget_subtitle / widget_app_icon，日期由渲染时按当天填。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="336dp"
@@ -28,18 +32,9 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <ImageView
-            android:id="@+id/widget_app_icon"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginEnd="8dp"
-            android:contentDescription="@null"
-            android:src="@mipmap/ic_launcher_kanban" />
-
         <TextView
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:ellipsize="end"
             android:includeFontPadding="true"
             android:maxLines="1"
@@ -47,16 +42,36 @@
             android:textColor="#FFFFFFFF"
             android:textSize="17sp"
             android:textStyle="bold" />
-
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:includeFontPadding="true"
             android:maxLines="1"
+            android:ellipsize="end"
+            android:text="@string/widget_preview_date"
+            android:textColor="#AAFFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:includeFontPadding="true"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:text="@string/widget_preview_week_twenty_two"
             android:textColor="#AAFFFFFF"
             android:textSize="15sp" />
+
+        <ImageView
+            android:id="@+id/widget_app_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="8dp"
+            android:contentDescription="@null"
+            android:src="@mipmap/ic_launcher_kanban" />
     </LinearLayout>
 
     <LinearLayout
