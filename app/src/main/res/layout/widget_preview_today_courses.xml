@@ -1,20 +1,229 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    今日课程 4×2 在小组件选择器里的预览（appwidget-provider 的 previewLayout）。
+
+    这里必须和 widget_today_courses_miuix.xml 在 4×2 下的真实渲染对齐，否则选择器里看到的
+    和拖到桌面后拿到的不是一个东西。336×168dp 下 coursesWidgetLayoutMetrics 算出
+    rowCapacity = 2：168 - 14×2 内边距 - 24 头部 - 4 上边距 = 112dp，正好两行 54dp（间距 4dp），
+    第三行放不下，所以这里是两行而不是四行。
+
+    文字颜色与字号取运行时深色分支的值：标题 17sp、副标题 15sp，起始时间 13.8sp→14sp、
+    结束时间同理，课程名 16sp、详情 11.8sp→12sp；颜色对应 fillLargeCourses 里的
+    #D2FFFFFF / #8CFFFFFF / #FFFFFF / #96FFFFFF；行内边距 10dp/5dp 取自
+    applyCoursesWidgetLayout 写入的 groupVerticalPaddingDp。
+
+    色条（widget_course_indicator_1/2）的运行时颜色是逐课分配的（WidgetCourseColors），
+    静态布局给不出来，所以沿用 widget_picker_preview_courses_large.png 里那两条色。
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="336dp" android:layout_height="168dp"
-    android:background="@drawable/widget_today_background_dark" android:orientation="vertical" android:padding="14dp">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
-        <ImageView android:id="@+id/widget_app_icon" android:layout_width="23dp" android:layout_height="23dp" android:layout_marginEnd="8dp" android:contentDescription="@null" android:src="@mipmap/ic_launcher_kanban" />
-        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/widget_preview_tomorrow_friday" android:textColor="#FFFFFFFF" android:textSize="16sp" android:textStyle="bold" />
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/widget_preview_week_three" android:textColor="#AAFFFFFF" android:textSize="13sp" />
+    android:layout_width="336dp"
+    android:layout_height="168dp"
+    android:background="@drawable/widget_today_background_dark"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="24dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/widget_app_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="@null"
+            android:src="@mipmap/ic_launcher_kanban" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:includeFontPadding="true"
+            android:maxLines="1"
+            android:text="@string/widget_preview_today_wednesday"
+            android:textColor="#FFFFFFFF"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:includeFontPadding="true"
+            android:maxLines="1"
+            android:text="@string/widget_preview_week_twenty_two"
+            android:textColor="#AAFFFFFF"
+            android:textSize="15sp" />
     </LinearLayout>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_marginTop="6dp" android:layout_weight="1" android:background="@drawable/widget_course_background_dark" android:gravity="center_vertical" android:orientation="horizontal" android:padding="8dp">
-        <TextView android:layout_width="54dp" android:layout_height="wrap_content" android:text="@string/widget_preview_morning_time" android:textColor="#CCFFFFFF" android:textSize="11sp" />
-        <ImageView android:layout_width="4dp" android:layout_height="match_parent" android:layout_marginEnd="9dp" android:contentDescription="@null" android:src="@drawable/widget_course_indicator" android:tint="#FFFF6B5E" />
-        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/widget_preview_materials_detail" android:textColor="#FFFFFFFF" android:textSize="12sp" />
-    </LinearLayout>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_marginTop="6dp" android:layout_weight="1" android:background="@drawable/widget_course_background_dark" android:gravity="center_vertical" android:orientation="horizontal" android:padding="8dp">
-        <TextView android:layout_width="54dp" android:layout_height="wrap_content" android:text="@string/widget_preview_afternoon_time" android:textColor="#CCFFFFFF" android:textSize="11sp" />
-        <ImageView android:layout_width="4dp" android:layout_height="match_parent" android:layout_marginEnd="9dp" android:contentDescription="@null" android:src="@drawable/widget_course_indicator" android:tint="#FF5B8FF9" />
-        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/widget_preview_signal_detail" android:textColor="#FFFFFFFF" android:textSize="12sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:background="@drawable/widget_course_background_dark">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingLeft="10dp"
+                android:paddingTop="5dp"
+                android:paddingRight="10dp"
+                android:paddingBottom="5dp">
+
+                <LinearLayout
+                    android:layout_width="58dp"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="true"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_morning_start"
+                        android:textColor="#D2FFFFFF"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="true"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_morning_end"
+                        android:textColor="#8CFFFFFF"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="5dp"
+                    android:layout_height="36dp"
+                    android:layout_marginLeft="5dp"
+                    android:layout_marginRight="10dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/widget_course_indicator"
+                    android:tint="#FFFF6B5E" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="true"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_materials_chemistry"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="true"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_materials_detail"
+                        android:textColor="#96FFFFFF"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/widget_course_background_dark">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingLeft="10dp"
+                android:paddingTop="5dp"
+                android:paddingRight="10dp"
+                android:paddingBottom="5dp">
+
+                <LinearLayout
+                    android:layout_width="58dp"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="true"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_afternoon_start"
+                        android:textColor="#D2FFFFFF"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="true"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_afternoon_end"
+                        android:textColor="#8CFFFFFF"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="5dp"
+                    android:layout_height="36dp"
+                    android:layout_marginLeft="5dp"
+                    android:layout_marginRight="10dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/widget_course_indicator"
+                    android:tint="#FF5B8FF9" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="true"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_digital_signal"
+                        android:textColor="#FFFFFFFF"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="true"
+                        android:maxLines="1"
+                        android:text="@string/widget_preview_signal_detail"
+                        android:textColor="#96FFFFFF"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </FrameLayout>
     </LinearLayout>
 </LinearLayout>
