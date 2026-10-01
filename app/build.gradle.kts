@@ -18,16 +18,35 @@ val releaseStoreFilePath = releaseSecret("sleepdown.releaseStoreFile", "SLEEPDOW
 val releaseStorePassword = releaseSecret("sleepdown.releaseStorePassword", "SLEEPDOWN_RELEASE_STORE_PASSWORD")
 val releaseKeyAlias = releaseSecret("sleepdown.releaseKeyAlias", "SLEEPDOWN_RELEASE_KEY_ALIAS")
 val releaseKeyPassword = releaseSecret("sleepdown.releaseKeyPassword", "SLEEPDOWN_RELEASE_KEY_PASSWORD")
+
+// Android Studio「Generate Signed Bundle or APK」向导注入的签名参数。向导不把它们写进任何配置文件，
+// 而是触发构建时以 -P 参数传给 Gradle；AGP 读到四项齐全的值后会建一个名为 externalOverride 的签名
+// 配置覆盖该次构建的签名配置，所以这里只需要认可它们，不需要在本脚本里再建一遍 signing config。
+val ideStoreFilePath = providers.gradleProperty("android.injected.signing.store.file").orNull
+val ideStorePassword = providers.gradleProperty("android.injected.signing.store.password").orNull
+val ideKeyAlias = providers.gradleProperty("android.injected.signing.key.alias").orNull
+val ideKeyPassword = providers.gradleProperty("android.injected.signing.key.password").orNull
+
 val remoteConfigSecret = releaseSecret("sleepdown.remoteConfigSecret", "SLEEPDOWN_REMOTE_CONFIG_SECRET").orEmpty()
 val skipReleaseResourceShrink = providers.gradleProperty("sleepdown.skipReleaseResourceShrink")
     .map(String::toBoolean)
     .getOrElse(false)
-val hasReleaseSigning = listOf(
+val hasConfiguredReleaseSigning = listOf(
     releaseStoreFilePath,
     releaseStorePassword,
     releaseKeyAlias,
     releaseKeyPassword
 ).all { !it.isNullOrBlank() }
+
+// 向导那四项必须一起齐全才算数：只认得半套等于没有签名身份。
+val hasIdeReleaseSigning = listOf(
+    ideStoreFilePath,
+    ideStorePassword,
+    ideKeyAlias,
+    ideKeyPassword
+).all { !it.isNullOrBlank() }
+
+val hasReleaseSigning = hasConfiguredReleaseSigning || hasIdeReleaseSigning
 
 @Suppress("UnstableApiUsage")
 android {
@@ -81,7 +100,9 @@ android {
     }
 
     signingConfigs {
-        if (hasReleaseSigning) {
+        // 只认四项 sleepdown.release* 的值：向导那次构建的签名由 AGP 的 externalOverride 负责，
+        // 这里没有可用的明文值，混进来会在 requireNotNull 处直接崩在配置阶段。
+        if (hasConfiguredReleaseSigning) {
             create("release") {
                 storeFile = file(requireNotNull(releaseStoreFilePath))
                 storePassword = releaseStorePassword
@@ -163,7 +184,8 @@ tasks.configureEach {
             check(hasReleaseSigning) {
                 "SleepDown release signing is missing. Configure sleepdown.releaseStoreFile, " +
                     "sleepdown.releaseStorePassword, sleepdown.releaseKeyAlias and " +
-                    "sleepdown.releaseKeyPassword (or the matching SLEEPDOWN_RELEASE_* environment variables)."
+                    "sleepdown.releaseKeyPassword (or the matching SLEEPDOWN_RELEASE_* environment variables), " +
+                    "or build through the Android Studio 'Generate Signed Bundle or APK' wizard."
             }
         }
     }

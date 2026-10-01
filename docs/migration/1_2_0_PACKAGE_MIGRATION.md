@@ -21,7 +21,9 @@ v1.1.5（versionCode 25）不修改、不覆盖发布历史。新包首个公开
 - `storeRelease`：不声明该权限，不合并下载服务，业务层通过 `AppDistribution.supportsSelfUpdate` 关闭更新检查、下载和安装入口。
 - Debug 变体使用 debug signing 与 `.debug` suffix；Benchmark 使用 debug signing，不依赖正式私钥。
 
-正式 Release 未配置四项签名参数时，assemble/bundle/package Release 任务会明确失败，绝不回退到 debug key。签名参数可来自 Gradle properties 或 `SLEEPDOWN_RELEASE_*` 环境变量。
+正式 Release 未配置四项签名参数时，assemble/bundle/package Release 任务会明确失败，绝不回退到 debug key。签名参数可来自 Gradle properties、`SLEEPDOWN_RELEASE_*` 环境变量，或 Android Studio「Generate Signed Bundle or APK」向导注入的 `android.injected.signing.*`。
+
+向导那条链路不进任何配置文件：向导在触发构建时以 `-P` 传入 `android.injected.signing.store.file` / `.store.password` / `.key.alias` / `.key.password`，AGP 读到四项齐全后建一个名为 `externalOverride` 的签名配置覆盖该次构建的签名配置，实际签名由 AGP 完成。`app/build.gradle.kts` 只把这四项用于放行门禁，不据此创建 `release` signing config（`release` config 仍只认 `sleepdown.release*` 的明文值）。因此向导可以打包，而 CI 与命令行构建仍然必须显式配置签名，两者都不会回退到 debug key。
 
 ## 暂缓审计
 
