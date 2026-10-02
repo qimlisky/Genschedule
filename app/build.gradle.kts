@@ -85,7 +85,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 32
-        versionName = "1.2.6_beta1"
+        versionName = "1.2.6_beta12"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SLEEPDOWN_API_BASE_URL", "\"https://api.sleepdownschedule.cn\"")
         buildConfigField(
@@ -149,6 +149,21 @@ android {
             isDebuggable = false
             isMinifyEnabled = false
             isShrinkResources = false
+        }
+        // 基线配置 / Macrobenchmark 插件会在配置阶段从 release 派生这两个构建类型（前缀 nonMinified / benchmark），
+        // 并在运行时补 matchingFallbacks = ["release"]。但那件事发生在插件回调里，Android Studio 的
+        // 依赖分析只读构建脚本里解析出来的 DSL 模型，看不到插件补的那份，于是对比 :kyant-backdrop 时
+        // 会报 "No build type in module 'kyant-backdrop' matches build type 'benchmarkRelease' / nonMinifiedRelease"。
+        // 这里显式声明出来，就是为了把 matchingFallbacks 落进脚本本身。插件发现同名类型已存在时会走
+        // “保留已声明配置”的分支，只覆盖它自己需要的那几项（isDebuggable / isProfileable / signing 等），
+        // 所以 initWith(release) 得到的 minify、shrink、proguardFiles 与插件自己创建的结果一致。
+        create("nonMinifiedRelease") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+        }
+        create("benchmarkRelease") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
         }
     }
 
